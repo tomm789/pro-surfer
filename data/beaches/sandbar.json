@@ -1,0 +1,20 @@
+{
+  "id": "sandbar",
+  "name": "Sandbar Inlet",
+  "region": "Florida, USA",
+  "breakDirection": "right",
+  "hollowness": 0.35,
+  "breakSpeed": 6.5,
+  "faceAspect": 1.55,
+  "tube": true,
+  "sections": { "rate": 1.5, "severity": 0.25, "doubleUp": false },
+  "hazards": ["tuber", "pier"],
+  "look": {
+    "sky": "day",
+    "waterDeep": "#0b4f6c",
+    "waterShallow": "#3ec6c2",
+    "sunAzimuthDeg": 200,
+    "sunElevationDeg": 42,
+    "landmarks": ["pier"]
+  }
+}

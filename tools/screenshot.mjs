@@ -28,3 +28,4 @@ try {
 } finally {
   server.stop();
 }
+process.exit(process.exitCode ?? 0);

@@ -1,8 +1,10 @@
 import { App } from '@/app/app';
 import { PlaceholderScene } from '@/scenes/placeholder';
+import { WaveScene } from '@/scenes/waveScene';
 
 const app = new App({
   placeholder: () => new PlaceholderScene(),
+  wave: () => new WaveScene(),
 });
 
 app.start().catch((err) => {

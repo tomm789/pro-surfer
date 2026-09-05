@@ -43,26 +43,48 @@ export function ensureDir(dir) {
 /** Start `vite preview` on the built dist (fast, deterministic) or `vite` dev server. Returns {url, stop}. */
 export async function startServer({ mode = 'preview', port = 4179 } = {}) {
   const root = resolve(new URL('..', import.meta.url).pathname);
-  const args = mode === 'dev' ? ['vite', '--port', String(port), '--strictPort'] : ['vite', 'preview', '--port', String(port), '--strictPort'];
-  const child = spawn('npx', args, { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, FORCE_COLOR: '0' } });
+  // Spawn vite's bin directly (no npx intermediary) in its own process group so stop() kills everything.
+  const viteBin = resolve(root, 'node_modules/vite/bin/vite.js');
+  const args = mode === 'dev' ? [viteBin, '--port', String(port), '--strictPort'] : [viteBin, 'preview', '--port', String(port), '--strictPort'];
+  const child = spawn(process.execPath, args, {
+    cwd: root,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, FORCE_COLOR: '0' },
+    detached: true,
+  });
   const url = `http://localhost:${port}/`;
   let output = '';
   let exited = null;
   child.stdout.on('data', (d) => (output += d.toString()));
   child.stderr.on('data', (d) => (output += d.toString()));
   child.on('exit', (code) => (exited = code ?? -1));
+  const stop = () => {
+    try {
+      process.kill(-child.pid, 'SIGTERM');
+    } catch {
+      /* already gone */
+    }
+    try {
+      child.kill('SIGKILL');
+    } catch {
+      /* already gone */
+    }
+    child.stdout.destroy();
+    child.stderr.destroy();
+    child.unref();
+  };
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
     if (exited !== null) throw new Error(`server exited ${exited}\n${output}`);
     try {
       const r = await fetch(url, { signal: AbortSignal.timeout(1000) });
-      if (r.ok) return { url, stop: () => child.kill('SIGTERM') };
+      if (r.ok) return { url, stop };
     } catch {
       /* not up yet */
     }
     await new Promise((r) => setTimeout(r, 200));
   }
-  child.kill('SIGTERM');
+  stop();
   throw new Error(`server start timeout\n${output}`);
 }
 

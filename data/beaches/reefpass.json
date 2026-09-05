@@ -1,0 +1,20 @@
+{
+  "id": "reefpass",
+  "name": "Reef Pass",
+  "region": "Tahiti",
+  "breakDirection": "left",
+  "hollowness": 0.95,
+  "breakSpeed": 8.5,
+  "faceAspect": 1.1,
+  "tube": true,
+  "sections": { "rate": 3.0, "severity": 0.6, "doubleUp": true },
+  "hazards": ["jetski"],
+  "look": {
+    "sky": "day",
+    "waterDeep": "#083d5c",
+    "waterShallow": "#2fb7b0",
+    "sunAzimuthDeg": 235,
+    "sunElevationDeg": 34,
+    "landmarks": ["reef-mountains"]
+  }
+}
