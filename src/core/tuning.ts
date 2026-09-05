@@ -1,0 +1,142 @@
+import { z } from 'zod';
+import tuningJson from '@data/tuning.json';
+
+const pair = z.tuple([z.number(), z.number()]);
+
+export const TuningSchema = z.object({
+  sim: z.object({ hz: z.number().int().positive(), maxSubSteps: z.number().int().positive() }),
+  clock: z.object({
+    runSeconds: z.number().positive(),
+    heatSeconds: z.number().positive(),
+    heatCount: z.number().int().positive(),
+    wipeoutPenaltySeconds: z.number().nonnegative(),
+    overrunUntilMeterDrains: z.boolean(),
+  }),
+  wave: z.object({
+    curlSpeedFactor: z.number().positive(),
+    defaultBreakSpeed: z.number().positive(),
+    faceLengthAhead: z.number().positive(),
+    faceLengthBehind: z.number().positive(),
+    tubeHollownessThreshold: z.number().min(0).max(1),
+    sectionWarnSeconds: z.number().nonnegative(),
+  }),
+  rider: z.object({
+    trimSpeed: z.number().positive(),
+    maxSpeed: z.number().positive(),
+    minStandSpeed: z.number().nonnegative(),
+    pumpAccel: z.number().nonnegative(),
+    pumpDescendBonus: z.number().nonnegative(),
+    climbDrag: z.number().nonnegative(),
+    stallDecel: z.number().nonnegative(),
+    superStallDecel: z.number().nonnegative(),
+    turnRate: z.number().positive(),
+    grabTurnRate: z.number().positive(),
+    carveTurnRate: z.number().positive(),
+    gravityAlongFace: z.number().nonnegative(),
+    bogSpeed: z.number().nonnegative(),
+    curlCatchMarginU: z.number().nonnegative(),
+    proneSpeed: z.number().nonnegative(),
+    standWindowV: pair,
+    dropSpeedBoost: z.number().nonnegative(),
+  }),
+  air: z.object({
+    gravity: z.number().positive(),
+    launchSpeedScale: z.number().positive(),
+    launchLipBonus: z.number().nonnegative(),
+    loadMaxSeconds: z.number().positive(),
+    loadMinFraction: z.number().min(0).max(1),
+    spinRateBase: z.number().nonnegative(),
+    spinRateStatScale: z.number().nonnegative(),
+    hangTimeStatScale: z.number().nonnegative(),
+    perfectWindowDeg: z.number().positive(),
+    sloppyWindowDeg: z.number().positive(),
+    landingReprojectV: z.number().min(0).max(1),
+  }),
+  tube: z.object({
+    entrySpeedMax: z.number().positive(),
+    balanceDriftBase: z.number().nonnegative(),
+    balanceDriftDepthScale: z.number().nonnegative(),
+    balanceStatScale: z.number().nonnegative(),
+    railGrabDriftFactor: z.number().min(0).max(1),
+    balanceInputImpulse: z.number().nonnegative(),
+    balanceFailThreshold: z.number().positive(),
+    quickCutOffsetU: z.number().nonnegative(),
+    depthZones: pair,
+    exitSpeed: z.number().positive(),
+  }),
+  floater: z.object({
+    speedLoss: z.number().min(0).max(1),
+    maxSeconds: z.number().positive(),
+    dropSpeedGain: z.number().nonnegative(),
+  }),
+  scoring: z.object({
+    base: z.object({
+      faceBasic: pair,
+      faceSpecial: z.number(),
+      grab: z.number(),
+      flip: z.number(),
+      airSpecial: pair,
+      tubePerSecond: z.number(),
+      tubeSquaredPerSecond: z.number(),
+      tubeTrick: z.number(),
+      tubeSpecial: z.number(),
+      floaterPerSecond: z.number(),
+      envSecret: pair,
+      exitMove: z.number(),
+    }),
+    repeatDecay: z.array(z.number()).min(1),
+    proximityMin: z.number(),
+    proximityMax: z.number(),
+    proximityBoardLengths: z.number(),
+    proximityFarMetres: z.number(),
+    rotationPer180: z.number(),
+    multiplierCap: z.number().int(),
+    perfectBaseFactor: z.number(),
+    iconChainBonus: z.number(),
+    iconChainCount: z.number().int(),
+  }),
+  meter: z.object({
+    fill: z.object({
+      faceTrick: z.number(),
+      grabOrFlip: z.number(),
+      special: z.number(),
+      tubePerSecond: z.number(),
+      floaterPerSecond: z.number(),
+    }),
+    perfectLanding: z.number(),
+    sloppyLanding: z.number(),
+    drainPerSecond: z.number(),
+    repeatDrain: z.number(),
+    wipeoutResetsMeter: z.boolean(),
+  }),
+  input: z.object({
+    sequenceWindowMs: z.number().positive(),
+    doubleTapWindowMs: z.number().positive(),
+    diagonalConeDeg: z.number().positive(),
+    deadzone: z.number().min(0).max(1),
+  }),
+  stats: z.object({ riderWeight: z.number(), boardWeight: z.number() }),
+  camera: z.object({
+    chaseDistance: z.number(),
+    chaseHeight: z.number(),
+    lookAheadU: z.number(),
+    lookAheadSpeedScale: z.number(),
+    smoothing: z.number(),
+    fov: z.number(),
+    wideDistance: z.number(),
+    wideHeight: z.number(),
+    tubeDistance: z.number(),
+    tubeHeight: z.number(),
+  }),
+  photo: z.object({ beeps: z.number().int(), beepIntervalSeconds: z.number(), shotsPerRun: z.number().int() }),
+  icons: z.object({ stackSize: z.number().int(), dropIntervalSeconds: z.number() }),
+});
+
+export type Tuning = z.infer<typeof TuningSchema>;
+
+export function parseTuning(raw: unknown): Tuning {
+  return TuningSchema.parse(raw);
+}
+
+/** The single shared tuning object. Mutable on purpose so a debug panel can live-tune. */
+export const TUNING: Tuning = parseTuning(tuningJson);

@@ -1,0 +1,142 @@
+{
+  "$comment": "Every tunable constant lives here. Section numbers refer to docs/DESIGN.md. Values marked proposed in the doc are starting points.",
+  "sim": {
+    "hz": 60,
+    "maxSubSteps": 4
+  },
+  "clock": {
+    "runSeconds": 180,
+    "heatSeconds": 90,
+    "heatCount": 3,
+    "wipeoutPenaltySeconds": 6,
+    "overrunUntilMeterDrains": true
+  },
+  "wave": {
+    "curlSpeedFactor": 0.9,
+    "defaultBreakSpeed": 7.5,
+    "faceLengthAhead": 90,
+    "faceLengthBehind": 40,
+    "tubeHollownessThreshold": 0.55,
+    "sectionWarnSeconds": 2.5
+  },
+  "rider": {
+    "trimSpeed": 8.5,
+    "maxSpeed": 17,
+    "minStandSpeed": 2.5,
+    "pumpAccel": 6.5,
+    "pumpDescendBonus": 1.6,
+    "climbDrag": 0.9,
+    "stallDecel": 8,
+    "superStallDecel": 14,
+    "turnRate": 2.6,
+    "grabTurnRate": 1.8,
+    "carveTurnRate": 3.4,
+    "gravityAlongFace": 6.5,
+    "bogSpeed": 3.2,
+    "curlCatchMarginU": 1.5,
+    "proneSpeed": 2.0,
+    "standWindowV": [0.15, 0.75],
+    "dropSpeedBoost": 4.0
+  },
+  "air": {
+    "gravity": 9.81,
+    "launchSpeedScale": 0.55,
+    "launchLipBonus": 3.0,
+    "loadMaxSeconds": 0.8,
+    "loadMinFraction": 0.35,
+    "spinRateBase": 4.2,
+    "spinRateStatScale": 3.6,
+    "hangTimeStatScale": 0.35,
+    "perfectWindowDeg": 20,
+    "sloppyWindowDeg": 45,
+    "landingReprojectV": 0.35
+  },
+  "tube": {
+    "entrySpeedMax": 6.0,
+    "balanceDriftBase": 0.22,
+    "balanceDriftDepthScale": 0.9,
+    "balanceStatScale": 0.5,
+    "railGrabDriftFactor": 0.5,
+    "balanceInputImpulse": 0.9,
+    "balanceFailThreshold": 1.0,
+    "quickCutOffsetU": 1.2,
+    "depthZones": [0.33, 0.66],
+    "exitSpeed": 9.0
+  },
+  "floater": {
+    "speedLoss": 0.85,
+    "maxSeconds": 2.5,
+    "dropSpeedGain": 2.0
+  },
+  "scoring": {
+    "base": {
+      "faceBasic": [250, 450],
+      "faceSpecial": 1500,
+      "grab": 300,
+      "flip": 400,
+      "airSpecial": [2000, 3000],
+      "tubePerSecond": 150,
+      "tubeSquaredPerSecond": 40,
+      "tubeTrick": 500,
+      "tubeSpecial": 2000,
+      "floaterPerSecond": 120,
+      "envSecret": [500, 1000],
+      "exitMove": 300
+    },
+    "repeatDecay": [1.0, 0.5, 0.25, 0.1],
+    "proximityMin": 1.0,
+    "proximityMax": 1.5,
+    "proximityBoardLengths": 1.0,
+    "proximityFarMetres": 12,
+    "rotationPer180": 0.35,
+    "multiplierCap": 30,
+    "perfectBaseFactor": 1.1,
+    "iconChainBonus": 10000,
+    "iconChainCount": 5
+  },
+  "meter": {
+    "fill": {
+      "faceTrick": 0.18,
+      "grabOrFlip": 0.12,
+      "special": 0.25,
+      "tubePerSecond": 0.06,
+      "floaterPerSecond": 0.05
+    },
+    "perfectLanding": 0.12,
+    "sloppyLanding": -0.15,
+    "drainPerSecond": 0.08,
+    "repeatDrain": 0.2,
+    "wipeoutResetsMeter": true
+  },
+  "input": {
+    "sequenceWindowMs": 600,
+    "doubleTapWindowMs": 280,
+    "diagonalConeDeg": 30,
+    "deadzone": 0.22
+  },
+  "stats": {
+    "riderWeight": 0.65,
+    "boardWeight": 0.35
+  },
+  "camera": {
+    "chaseDistance": 9.5,
+    "chaseHeight": 3.6,
+    "lookAheadU": 6.0,
+    "lookAheadSpeedScale": 0.35,
+    "smoothing": 5.0,
+    "fov": 62,
+    "wideDistance": 13,
+    "wideHeight": 5.5,
+    "tubeDistance": 4.5,
+    "tubeHeight": 1.2
+  },
+  "photo": {
+    "beeps": 4,
+    "beepIntervalSeconds": 0.8,
+    "shotsPerRun": 3
+  },
+  "icons": {
+    "stackSize": 6,
+    "dropIntervalSeconds": 5.0
+  }
+}
