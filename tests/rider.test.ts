@@ -49,7 +49,8 @@ describe('landing judge', () => {
 
 describe('rider on the face', () => {
   it('trims down the line for 60 s without wiping out and stays ahead of the curl', () => {
-    const { rider, run, log } = rig();
+    const { rider, run, log, wave } = rig();
+    wave.params.sections.rate = 0; // sections are their own test; this one measures trimming
     run(60, { stickY: 0.4 });
     expect(log.filter((l) => l.startsWith('wipeout'))).toEqual([]);
     expect(rider.state).toBe('face');

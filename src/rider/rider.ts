@@ -6,6 +6,7 @@
 import { clamp, damp, lerp, smoothstep, wrapAngle, angleDelta, type Vec3, v3, v3Set } from '@/core/math';
 import type { EventBus } from '@/core/events';
 import type { Tuning } from '@/core/tuning';
+import { Rng } from '@/core/rng';
 import { WaveModel, makeSurfaceSample, type SurfaceSample } from '@/wave/wave';
 import { facePoint } from '@/wave/profile';
 import { InputEdges, NEUTRAL_INPUT, type RiderInput } from './input';
@@ -29,6 +30,23 @@ export interface RiderEvents extends Record<string, unknown> {
   wipeout: { reason: WipeoutReason; u: number };
   respawn: { u: number };
   jumpLoad: { power: number };
+  tubeEnter: { u: number; passive: boolean };
+  tubeExit: { seconds: number; maxDepth: number; spit: boolean; u: number };
+  floaterStart: { u: number };
+  floaterEnd: { seconds: number; overSection: boolean; u: number };
+}
+
+export interface TubeState {
+  /** u offset ahead of the curl (the foam ball is at 0). */
+  offset: number;
+  /** 0 = at the exit, 1 = deepest. */
+  depth: number;
+  /** Balance marker −1..1; |b| ≥ 1 is a fall. */
+  balance: number;
+  driftDir: 1 | -1;
+  driftTimer: number;
+  seconds: number;
+  maxDepth: number;
 }
 
 export interface RiderPose {
@@ -69,8 +87,14 @@ export class RiderSim {
   private p2 = { d: 0, y: 0 };
   lastLanding: LandingJudgement | null = null;
   lastWipeout: WipeoutReason | null = null;
-  /** Set by the tube module (M3); face physics defers to it while non-null. */
   wipeouts = 0;
+  readonly tube: TubeState = { offset: 0, depth: 0, balance: 0, driftDir: 1, driftTimer: 0, seconds: 0, maxDepth: 0 };
+  floaterSeconds = 0;
+  private rng: Rng;
+  private lastDownTap = -10;
+  private prevStickY = 0;
+  private prevStickDir = 0;
+  private superStallUntil = -1;
 
   constructor(
     readonly wave: WaveModel,
@@ -78,8 +102,10 @@ export class RiderSim {
     stats: RiderStats,
     private events: EventBus<RiderEvents>,
     start?: { u?: number; v?: number; state?: RiderState },
+    rng?: Rng,
   ) {
     this.stats = stats;
+    this.rng = rng ?? new Rng(0x5eed);
     this.u = start?.u ?? wave.curlU + tuning.rider.respawnAheadU;
     this.v = start?.v ?? tuning.rider.respawnV;
     if (start?.state) this.state = start.state;
@@ -117,11 +143,26 @@ export class RiderSim {
         this.stepWipeout(dt);
         break;
       case 'tube':
+        this.stepTube(dt, input);
+        break;
       case 'floater':
-        // handled by M3 modules; fall back to face physics so nothing gets stuck
-        this.stepFace(dt, input);
+        this.stepFloater(dt, input);
         break;
     }
+    this.prevStickY = input.stickY;
+  }
+
+  /** Double-tap down = Super Stall (design doc §4.1). */
+  private detectSuperStall(input: Readonly<RiderInput>): void {
+    if (input.stickY < -0.5 && this.prevStickY >= -0.5) {
+      const window = this.tuning.input.doubleTapWindowMs / 1000;
+      if (this.totalTime - this.lastDownTap < window) this.superStallUntil = this.totalTime + 0.6;
+      this.lastDownTap = this.totalTime;
+    }
+  }
+
+  get superStalling(): boolean {
+    return this.totalTime < this.superStallUntil;
   }
 
   private setState(s: RiderState): void {
@@ -184,6 +225,7 @@ export class RiderSim {
     const A = this.tuning.air;
     const s = this.wave.sample(this.u, this.v, this.sample);
     const toWall = this.toWall(input);
+    this.detectSuperStall(input);
 
     // steering: the board wants to trim along the line; hold toward the wall to keep climbing
     let rate = R.turnRate;
@@ -196,14 +238,19 @@ export class RiderSim {
     const sinH = Math.sin(this.heading);
     const gAlong = -R.gravityAlongFace * Math.sin(s.slope) * sinH;
     const power = this.wavePower();
-    const trim = this.trimTarget(power);
-    const relax = this.speed < trim ? R.relaxBelowTrim : R.relaxAboveTrim;
+    let trim = this.trimTarget(power);
+    let relax = this.speed < trim ? R.relaxBelowTrim : R.relaxAboveTrim;
+    const stalling = input.stickY < -0.3;
+    if (stalling) {
+      // stalling drags the tail: the wave still carries you, but at a fraction of trim (super stall: less)
+      const frac = this.superStalling ? R.superStallSpeedFraction : R.stallSpeedFraction;
+      trim = Math.min(trim, R.trimSpeed * frac);
+      relax = R.stallRelax * -input.stickY;
+    }
     let a = gAlong + (trim - this.speed) * relax;
     if (input.stickY > 0.3) {
       const pumpEff = sinH < 0 ? 1 + R.pumpDescendBonus * -sinH : 1 - 0.7 * sinH;
       a += R.pumpAccel * input.stickY * pumpEff * power * power;
-    } else if (input.stickY < -0.3) {
-      a -= R.stallDecel * -input.stickY;
     }
     if (input.carve && Math.abs(toWall) > 0.2) a += R.carveAccel * Math.abs(toWall);
     const maxSpeed = R.maxSpeed * (1 + this.stats.speed * 0.2);
@@ -223,7 +270,7 @@ export class RiderSim {
 
     // bogging: too slow high on the face → slide down; too slow anywhere → fall
     if (this.speed < R.bogSpeed && this.v > 0.35) this.v -= ((R.bogSpeed - this.speed) / R.bogSpeed) * 0.35 * dt;
-    if (this.speed < R.minStandSpeed && this.stateTime > 0.5) {
+    if (this.speed < R.minStandSpeed && this.stateTime > 0.5 && this.v > 0.25) {
       this.wipeout('bogged');
       return;
     }
@@ -234,7 +281,7 @@ export class RiderSim {
       if (this.heading < 0) this.heading = damp(this.heading, 0, 12, dt);
     }
 
-    // lip boundary: launch, or fall over the back
+    // lip boundary: launch, floater, or fall over the back
     const releasedJump = this.edges.released('jump');
     const wantsLaunch = (releasedJump || (this.v >= 1 && input.jump)) && this.v >= A.launchMinV && sinH >= A.launchMinHeading;
     if (wantsLaunch) {
@@ -244,6 +291,11 @@ export class RiderSim {
       return;
     }
     if (releasedJump) this.jumpLoad = 0;
+    const F = this.tuning.floater;
+    if (input.slide && this.v >= F.entryMinV && sinH > -0.1) {
+      this.startFloater();
+      return;
+    }
     if (this.v > 1) {
       if (sinH > R.overTheBackSin) {
         this.wipeout('over-the-back');
@@ -253,12 +305,149 @@ export class RiderSim {
       this.heading = damp(this.heading, 0, 8, dt);
     }
 
-    // the curl: fall behind it and you're in the whitewater
-    const { behind } = this.wave.distanceToBreak(this.u);
-    if (behind < -R.curlCatchMarginU) {
+    // tube entry: in the pocket under a roof, slow enough (stalling makes it deliberate)
+    const T = this.tuning.tube;
+    const fields = s.fields;
+    const ahead = this.u - this.wave.curlU;
+    const tubeLen = this.wave.tubeLength(T.lengthFactor);
+    if (fields.tube > 0.35 && ahead >= T.minOffsetU && ahead <= tubeLen && this.v < 0.55) {
+      const stalling = input.stickY < -0.5 || this.superStalling;
+      if ((stalling && this.speed <= T.entrySpeedMax) || this.speed <= T.entrySpeedMax * 0.75) {
+        this.enterTube(!stalling);
+        return;
+      }
+    }
+
+    // whitewater: fall behind the curl or run into a close-out
+    const brk = this.wave.distanceToBreak(this.u);
+    const mainBehind = this.u - this.wave.curlU;
+    if (mainBehind < -R.curlCatchMarginU) {
       this.wipeout('curl');
       return;
     }
+    // inside a section's whitewater by more than the catch margin (its soft leading edge is survivable)
+    if (brk.inside && brk.behind < -R.curlCatchMarginU) {
+      this.wipeout('closeout');
+      return;
+    }
+  }
+
+  // ───────────────────────────── tube ─────────────────────────────
+  private enterTube(passive: boolean): void {
+    const T = this.tuning.tube;
+    const t = this.tube;
+    t.offset = this.u - this.wave.curlU;
+    t.balance = 0;
+    t.driftDir = this.rng.chance(0.5) ? 1 : -1;
+    t.driftTimer = this.rng.range(T.driftFlipMinSeconds, T.driftFlipMaxSeconds);
+    t.seconds = 0;
+    t.maxDepth = 0;
+    t.depth = 0;
+    this.heading = 0;
+    this.prevStickDir = 0;
+    this.setState('tube');
+    this.events.emit('tubeEnter', { u: this.u, passive });
+  }
+
+  private stepTube(dt: number, input: Readonly<RiderInput>): void {
+    const T = this.tuning.tube;
+    const R = this.tuning.rider;
+    const t = this.tube;
+    const len = this.wave.tubeLength(T.lengthFactor);
+    t.seconds += dt;
+    // depth control: stall = deeper (the curl gains on you), up/jump = speed out; the barrel pulls you back a little
+    let rel = -0.25;
+    if (input.stickY < -0.3) rel -= T.depthRate * -input.stickY;
+    else if (input.stickY > 0.3) rel += T.depthRate * input.stickY;
+    if (input.jump) rel += T.escapeAccel;
+    // quick cuts reposition instantly
+    if (this.edges.pressed('spinLeft')) {
+      t.offset -= T.quickCutOffsetU * this.wave.params.direction;
+      t.balance += T.quickCutBalanceKick * t.driftDir;
+    }
+    if (this.edges.pressed('spinRight')) {
+      t.offset += T.quickCutOffsetU * this.wave.params.direction;
+      t.balance -= T.quickCutBalanceKick * t.driftDir;
+    }
+    t.offset += rel * dt;
+    this.u = this.wave.curlU + t.offset;
+    this.speed = this.wave.params.breakSpeed + rel;
+    this.v = damp(this.v, 0.24, 6, dt);
+    t.depth = clamp(1 - (t.offset - T.minOffsetU) / Math.max(0.5, len - T.minOffsetU), 0, 1);
+    t.maxDepth = Math.max(t.maxDepth, t.depth);
+
+    // balance: the marker drifts, harder when deep; tap/hold left-right to centre it; rail grab damps it
+    t.driftTimer -= dt;
+    if (t.driftTimer <= 0) {
+      t.driftDir = t.driftDir === 1 ? -1 : 1;
+      t.driftTimer = this.rng.range(T.driftFlipMinSeconds, T.driftFlipMaxSeconds);
+    }
+    let drift = (T.balanceDriftBase + T.balanceDriftDepthScale * t.depth) * (1 - this.stats.balance * T.balanceStatScale);
+    if (input.grab) drift *= T.railGrabDriftFactor;
+    t.balance += t.driftDir * drift * dt;
+    const stickDir = input.stickX > 0.5 ? 1 : input.stickX < -0.5 ? -1 : 0;
+    if (stickDir !== 0 && stickDir !== this.prevStickDir) t.balance -= stickDir * T.balanceTapImpulse;
+    if (stickDir !== 0) t.balance -= stickDir * T.balanceHoldRate * dt;
+    this.prevStickDir = stickDir;
+    if (Math.abs(t.balance) >= T.balanceFailThreshold) {
+      this.wipeout('tube-balance');
+      return;
+    }
+
+    // exits
+    if (t.offset <= T.minOffsetU * 0.4) {
+      this.wipeout('curl');
+      return;
+    }
+    const roof = this.wave.fields(this.u).tube;
+    if (t.offset >= len || roof < 0.12) this.exitTube();
+    if (this.speed < R.minStandSpeed * 0.5 && this.state === 'tube') this.wipeout('bogged');
+  }
+
+  private exitTube(): void {
+    const T = this.tuning.tube;
+    const t = this.tube;
+    this.setState('face');
+    this.speed = Math.max(this.speed, T.exitSpeed);
+    this.heading = -0.15;
+    this.v = Math.max(this.v, 0.3);
+    this.events.emit('tubeExit', { seconds: t.seconds, maxDepth: t.maxDepth, spit: t.maxDepth >= T.spitDepth, u: this.u });
+  }
+
+  // ───────────────────────────── floater ─────────────────────────────
+  private startFloater(): void {
+    this.floaterSeconds = 0;
+    this.v = 1;
+    this.heading = 0;
+    this.jumpLoad = 0;
+    this.setState('floater');
+    this.events.emit('floaterStart', { u: this.u });
+  }
+
+  private stepFloater(dt: number, input: Readonly<RiderInput>): void {
+    const F = this.tuning.floater;
+    const R = this.tuning.rider;
+    this.floaterSeconds += dt;
+    this.v = 1;
+    this.heading = 0;
+    this.speed *= 1 - F.speedLossPerSecond * dt;
+    this.u += this.speed * dt;
+    const done = !input.slide || this.floaterSeconds >= F.maxSeconds || this.speed < R.minStandSpeed;
+    if (done) this.endFloater();
+  }
+
+  private endFloater(): void {
+    const F = this.tuning.floater;
+    const overSection = this.wave.distanceToBreak(this.u).inside || this.wave.fields(this.u).broken > 0.5;
+    this.events.emit('floaterEnd', { seconds: this.floaterSeconds, overSection, u: this.u });
+    if (overSection) {
+      this.wipeout('closeout');
+      return;
+    }
+    this.setState('face');
+    this.v = 0.62;
+    this.heading = -0.5;
+    this.speed += F.dropSpeedGain;
   }
 
   // ───────────────────────────── air ─────────────────────────────
@@ -475,6 +664,8 @@ export class RiderSim {
       lastWipeout: this.lastWipeout,
       wipeouts: this.wipeouts,
       fakie: this.fakie,
+      tube: this.state === 'tube' ? { depth: +this.tube.depth.toFixed(2), balance: +this.tube.balance.toFixed(2), seconds: +this.tube.seconds.toFixed(2) } : null,
+      floater: this.state === 'floater' ? +this.floaterSeconds.toFixed(2) : null,
     };
   }
 }

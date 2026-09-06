@@ -49,6 +49,12 @@ export class ChaseCamera {
       height *= 1.15;
     }
     const p = pose.pos;
+    if (state === 'tube' || (this.mode === 'tube' && state !== 'air')) {
+      // inside the barrel: low and just behind the rider, looking out toward the exit
+      this.desiredPos.set(p.x - dir * C.tubeDistance, p.y + C.tubeHeight, p.z - 0.4);
+      this.desiredLook.set(p.x + dir * 14, p.y + 0.9, p.z - 1.0);
+      return;
+    }
     // sit behind (−dir·x) and shoreward (−z) of the rider, above the water
     const back = 0.72;
     const side = 0.62;

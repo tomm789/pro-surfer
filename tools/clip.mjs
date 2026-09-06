@@ -18,9 +18,10 @@ const pw = loadPlaywright();
 const server = await startServer({ mode: args.dev ? 'dev' : 'preview' });
 try {
   const extra = {};
-  for (const k of Object.keys(args)) if (!['scene', 'seconds', 'fps', 'from', 'w', 'h', 'out', 'dev', 'input'].includes(k)) extra[k] = args[k];
+  for (const k of Object.keys(args)) if (!['scene', 'seconds', 'fps', 'from', 'w', 'h', 'out', 'dev', 'input', 'script'].includes(k)) extra[k] = args[k];
   const { browser, page, errors } = await openGame(pw, server.url, { width, height, params: { scene, seed: args.seed ?? '1', ...extra } });
   if (args.input) await page.evaluate((inp) => window.__lineup.setInput(inp), JSON.parse(args.input));
+  if (args.script) await page.evaluate((s) => window.__lineup.setInput({ script: s }), JSON.parse(args.script));
   if (from > 0) await page.evaluate((s) => window.__lineup.stepTo(s), from);
   const frameDir = ensureDir(resolve('artifacts', `_frames_${scene}`));
   const hz = await page.evaluate(() => 60);

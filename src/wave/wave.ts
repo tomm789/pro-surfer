@@ -228,10 +228,15 @@ export class WaveModel {
     return this.sections.filter((s) => this.time < s.breakTime);
   }
 
-  /** Signed distance from u to the nearest whitewater edge ahead (+) or behind (−). */
-  distanceToBreak(u: number): { behind: number; ahead: number } {
+  /**
+   * Distance from u to whitewater: `behind` = metres ahead of the nearest breaking edge behind the rider
+   * (negative once the rider is inside whitewater), `ahead` = metres to the next section's rear edge,
+   * `inside` = u is inside a broken region.
+   */
+  distanceToBreak(u: number): { behind: number; ahead: number; inside: boolean } {
     let behind = u - this.curlU;
     let ahead = Infinity;
+    let inside = behind < 0;
     for (const sec of this.sections) {
       if (this.time < sec.breakTime) continue;
       const rear = sec.u - sec.halfWidth;
@@ -239,11 +244,17 @@ export class WaveModel {
       if (rear > u) ahead = Math.min(ahead, rear - u);
       else if (front < u) behind = Math.min(behind, u - front);
       else {
-        behind = 0;
+        inside = true;
+        behind = Math.min(behind, -(u - rear));
         ahead = 0;
       }
     }
-    return { behind, ahead };
+    return { behind, ahead, inside };
+  }
+
+  /** Rideable tube window ahead of the main curl: [minOffset, length] in u relative to curlU. */
+  tubeLength(lengthFactor: number): number {
+    return this.params.throwLength * lengthFactor;
   }
 }
 
@@ -271,7 +282,7 @@ export function waveParamsFromBeach(
     direction: beach.breakDirection === 'right' ? 1 : -1,
     faceAspect: beach.faceAspect,
     tube: beach.tube,
-    sections: beach.sections,
+    sections: { ...beach.sections },
     throwLength: tuning.throwLength ?? Math.max(7, heightMetres * 3.6),
     collapseLength: tuning.collapseLength ?? Math.max(5, heightMetres * 2.5),
     warnSeconds: tuning.warnSeconds,

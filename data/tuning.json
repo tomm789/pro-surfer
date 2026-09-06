@@ -54,7 +54,10 @@
     "respawnV": 0.25,
     "boardLength": 1.9,
     "headingLevelRate": 2.4,
-    "overTheBackSin": 0.7
+    "overTheBackSin": 0.7,
+    "stallSpeedFraction": 0.42,
+    "superStallSpeedFraction": 0.22,
+    "stallRelax": 2.4
   },
   "air": {
     "gravity": 9.81,
@@ -77,24 +80,34 @@
     "landSpeedKeepSloppy": 0.72
   },
   "tube": {
-    "entrySpeedMax": 6.0,
+    "entrySpeedMax": 7.0,
+    "minOffsetU": 1.2,
+    "lengthFactor": 0.6,
+    "depthRate": 3.0,
     "balanceDriftBase": 0.22,
     "balanceDriftDepthScale": 0.9,
     "balanceStatScale": 0.5,
     "railGrabDriftFactor": 0.5,
-    "balanceInputImpulse": 0.9,
+    "balanceTapImpulse": 0.32,
+    "balanceHoldRate": 1.1,
     "balanceFailThreshold": 1.0,
+    "driftFlipMinSeconds": 0.8,
+    "driftFlipMaxSeconds": 2.0,
     "quickCutOffsetU": 1.2,
+    "quickCutBalanceKick": 0.25,
     "depthZones": [
       0.33,
       0.66
     ],
-    "exitSpeed": 9.0
+    "exitSpeed": 9.0,
+    "escapeAccel": 5.0,
+    "spitDepth": 0.5
   },
   "floater": {
-    "speedLoss": 0.85,
+    "speedLossPerSecond": 0.22,
     "maxSeconds": 2.5,
-    "dropSpeedGain": 2.0
+    "dropSpeedGain": 2.0,
+    "entryMinV": 0.82
   },
   "scoring": {
     "base": {

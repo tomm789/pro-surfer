@@ -1,5 +1,5 @@
 // Usage: node tools/screenshot.mjs --scene placeholder --t 2.5 [--w 1280 --h 720] [--out artifacts/x.png] [--dev]
-//        [--input '{"pump":true}'] [--steps 60]
+//        [--input '{"stickY":1}'] [--script '[{"t":1,"input":{"stand":true}},{"t":2,"input":{"stickY":-1}}]'] [--steps 60]
 import { resolve } from 'node:path';
 import { loadPlaywright, parseArgs, ensureDir, startServer, openGame } from './browser.mjs';
 
@@ -14,9 +14,10 @@ const pw = loadPlaywright();
 const server = await startServer({ mode: args.dev ? 'dev' : 'preview' });
 try {
   const extra = {};
-  for (const k of Object.keys(args)) if (!['scene', 't', 'w', 'h', 'out', 'dev', 'input', 'steps'].includes(k)) extra[k] = args[k];
+  for (const k of Object.keys(args)) if (!['scene', 't', 'w', 'h', 'out', 'dev', 'input', 'steps', 'script'].includes(k)) extra[k] = args[k];
   const { browser, page, errors } = await openGame(pw, server.url, { width, height, params: { scene, seed: args.seed ?? '1', ...extra } });
   if (args.input) await page.evaluate((inp) => window.__lineup.setInput(inp), JSON.parse(args.input));
+  if (args.script) await page.evaluate((s) => window.__lineup.setInput({ script: s }), JSON.parse(args.script));
   if (args.steps) await page.evaluate((n) => window.__lineup.step(n), Number(args.steps));
   else await page.evaluate((s) => window.__lineup.stepTo(s), t);
   const state = await page.evaluate(() => ({ time: window.__lineup.time(), scene: window.__lineup.scene(), state: window.__lineup.state(), stats: window.__lineup.stats() }));

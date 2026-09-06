@@ -56,7 +56,7 @@ export class SectionScheduler {
 
   /** Call once per sim step. Returns a new section (in warning state) or null. */
   update(time: number, curlU: number, riderU: number | null): Section | null {
-    if (time < this.nextAt) return null;
+    if (this.profile.rate <= 0 || time < this.nextAt) return null;
     this.nextAt = time + this.sampleInterval();
     const sev = this.profile.severity;
     // Spawn relative to the rider when we have one (so sections are a threat), else relative to the curl.
