@@ -1,9 +1,8 @@
 import { cloneInput, NEUTRAL_INPUT, type RiderInput } from '@/rider/input';
+import { KEYMAP_SOLO, type Keymap } from './keymaps';
 
 /**
- * Presentation-layer input: keyboard + Gamepad API → RiderInput. Mapping follows design doc §4.2.
- * Keyboard: arrows/WASD stick · Space jump · J carve · K grab/duck-dive · L slide/floater/stand ·
- * Q/E spin · Enter cash-in · Shift camera · Tab object cam · Esc pause.
+ * Presentation-layer input: keyboard + Gamepad API → RiderInput, per player.
  * Gamepad (standard mapping): stick/d-pad · A jump · X carve · B grab · Y slide/stand · LB/RB spin ·
  * R3 cash-in · LT camera · RT object cam · Start pause.
  */
@@ -13,8 +12,11 @@ export class InputManager {
   private deadzone: number;
   /** Set when any key/button was pressed at least once (audio unlock, gamepad user gesture). */
   anyInputSeen = false;
-  gamepadIndex: number | null = null;
+  /** Which gamepad index this player uses; null = first connected pad. */
+  gamepadIndex: number | null;
   gamepadName = '';
+  /** When true, ignore gamepads entirely (keyboard-only player). */
+  keyboardOnly = false;
   private onKeyDown = (e: KeyboardEvent) => {
     if (e.repeat) return;
     this.keys.add(e.code);
@@ -26,8 +28,17 @@ export class InputManager {
   };
   private onBlur = () => this.keys.clear();
 
-  constructor(deadzone = 0.22) {
+  constructor(
+    deadzone = 0.22,
+    private keymap: Keymap = KEYMAP_SOLO,
+    gamepadIndex: number | null = null,
+  ) {
     this.deadzone = deadzone;
+    this.gamepadIndex = gamepadIndex;
+  }
+
+  setKeymap(map: Keymap): void {
+    this.keymap = map;
   }
 
   attach(target: Window = window): void {
@@ -36,12 +47,8 @@ export class InputManager {
     target.addEventListener('blur', this.onBlur);
     target.addEventListener('gamepadconnected', (e) => {
       const gp = (e as GamepadEvent).gamepad;
-      this.gamepadIndex = gp.index;
-      this.gamepadName = gp.id;
+      if (this.gamepadIndex === null || gp.index === this.gamepadIndex) this.gamepadName = gp.id;
       this.anyInputSeen = true;
-    });
-    target.addEventListener('gamepaddisconnected', (e) => {
-      if ((e as GamepadEvent).gamepad.index === this.gamepadIndex) this.gamepadIndex = null;
     });
   }
 
@@ -51,40 +58,42 @@ export class InputManager {
     target.removeEventListener('blur', this.onBlur);
   }
 
-  private key(...codes: string[]): boolean {
+  private key(codes: string[]): boolean {
     for (const c of codes) if (this.keys.has(c)) return true;
     return false;
+  }
+
+  /** Which pad this player reads: the configured index, else the first connected pad. */
+  private pad(): Gamepad | null {
+    if (this.keyboardOnly || typeof navigator === 'undefined' || !navigator.getGamepads) return null;
+    const pads = navigator.getGamepads();
+    if (this.gamepadIndex !== null) return pads[this.gamepadIndex] ?? null;
+    for (const p of pads) if (p) return p;
+    return null;
   }
 
   /** Poll and return the current input. Call once per rendered frame. */
   poll(): Readonly<RiderInput> {
     const i = this.input;
-    // keyboard
-    let x = (this.key('ArrowRight', 'KeyD') ? 1 : 0) - (this.key('ArrowLeft', 'KeyA') ? 1 : 0);
-    let y = (this.key('ArrowUp', 'KeyW') ? 1 : 0) - (this.key('ArrowDown', 'KeyS') ? 1 : 0);
-    i.jump = this.key('Space');
-    i.carve = this.key('KeyJ');
-    i.grab = this.key('KeyK');
-    i.slide = this.key('KeyL');
-    i.spinLeft = this.key('KeyQ');
-    i.spinRight = this.key('KeyE');
-    i.cashIn = this.key('Enter', 'NumpadEnter');
-    i.cameraToggle = this.key('ShiftLeft', 'ShiftRight');
-    i.objectCam = this.key('Tab');
-    i.pause = this.key('Escape');
+    const m = this.keymap;
+    let x = (this.key(m.right) ? 1 : 0) - (this.key(m.left) ? 1 : 0);
+    let y = (this.key(m.up) ? 1 : 0) - (this.key(m.down) ? 1 : 0);
+    i.jump = this.key(m.jump);
+    i.carve = this.key(m.carve);
+    i.grab = this.key(m.grab);
+    i.slide = this.key(m.slide);
+    i.spinLeft = this.key(m.spinLeft);
+    i.spinRight = this.key(m.spinRight);
+    i.cashIn = this.key(m.cashIn);
+    i.cameraToggle = this.key(m.cameraToggle);
+    i.objectCam = this.key(m.objectCam);
+    i.pause = this.key(m.pause);
     i.stand = i.slide;
     i.duckDive = i.grab;
 
-    // gamepad
-    const pads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
-    let gp: Gamepad | null = null;
-    for (const p of pads) {
-      if (p && (this.gamepadIndex === null || p.index === this.gamepadIndex)) {
-        gp = p;
-        break;
-      }
-    }
+    const gp = this.pad();
     if (gp) {
+      if (!this.gamepadName) this.gamepadName = gp.id;
       const ax = gp.axes[0] ?? 0;
       const ay = -(gp.axes[1] ?? 0);
       const mag = Math.hypot(ax, ay);
@@ -93,7 +102,7 @@ export class InputManager {
         x = x || ax * scale;
         y = y || ay * scale;
       }
-      const b = (n: number) => !!gp!.buttons[n]?.pressed;
+      const b = (n: number) => !!gp.buttons[n]?.pressed;
       if (b(12)) y = 1;
       if (b(13)) y = -1;
       if (b(14)) x = -1;
@@ -119,12 +128,20 @@ export class InputManager {
 
   /** Dual-rumble if the pad supports it (Chrome, Safari 17+). Silently no-ops elsewhere. */
   rumble(strong: number, weak: number, ms: number): void {
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    for (const p of pads) {
-      const act = (p as unknown as { vibrationActuator?: { playEffect?: (t: string, o: object) => Promise<unknown> } } | null)?.vibrationActuator;
-      if (act?.playEffect) {
-        act.playEffect('dual-rumble', { duration: ms, strongMagnitude: strong, weakMagnitude: weak }).catch(() => undefined);
-      }
-    }
+    const p = this.pad();
+    const act = (p as unknown as { vibrationActuator?: { playEffect?: (t: string, o: object) => Promise<unknown> } } | null)?.vibrationActuator;
+    if (act?.playEffect) act.playEffect('dual-rumble', { duration: ms, strongMagnitude: strong, weakMagnitude: weak }).catch(() => undefined);
+  }
+
+  /** Number of connected gamepads (for multiplayer setup). */
+  static padCount(): number {
+    if (typeof navigator === 'undefined' || !navigator.getGamepads) return 0;
+    let n = 0;
+    for (const p of navigator.getGamepads()) if (p) n++;
+    return n;
+  }
+
+  get pressedKeys(): ReadonlySet<string> {
+    return this.keys;
   }
 }

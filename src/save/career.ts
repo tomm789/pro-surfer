@@ -8,6 +8,7 @@ export interface CareerData {
   rider: string;
   board: string;
   stats: { spin: number; speed: number; air: number; balance: number };
+  records: { bestScore: number; bestChain: number; longestTube: number; mostSpecialTime: number; perBeach: Record<string, number>; byRider: Record<string, number> };
 }
 
 const KEY = 'lineup.career.v1';
@@ -33,6 +34,7 @@ export function defaultCareer(): CareerData {
     rider: 'kai',
     board: 'thruster',
     stats: { spin: 0, speed: 0, air: 0, balance: 0 },
+    records: { bestScore: 0, bestChain: 0, longestTube: 0, mostSpecialTime: 0, perBeach: {}, byRider: {} },
   };
 }
 
@@ -101,6 +103,35 @@ export class CareerSave {
     }
     this.save();
     return { newLevels, newRewards };
+  }
+
+  /** Record book (design doc §10): per-rider and per-beach bests. Returns which records were broken. */
+  recordSession(beachId: string, riderId: string, s: { score: number; bestChain: number; longestTube: number; specialTime: number }): string[] {
+    const r = this.data.records;
+    const broken: string[] = [];
+    if (s.score > r.bestScore) {
+      r.bestScore = s.score;
+      broken.push('best score');
+    }
+    if (s.bestChain > r.bestChain) {
+      r.bestChain = s.bestChain;
+      broken.push('best chain');
+    }
+    if (s.longestTube > r.longestTube) {
+      r.longestTube = s.longestTube;
+      broken.push('longest tube');
+    }
+    if (s.specialTime > r.mostSpecialTime) {
+      r.mostSpecialTime = s.specialTime;
+      broken.push('most special time');
+    }
+    if (s.score > (r.perBeach[beachId] ?? 0)) {
+      r.perBeach[beachId] = s.score;
+      broken.push(`${beachId} record`);
+    }
+    if (s.score > (r.byRider[riderId] ?? 0)) r.byRider[riderId] = s.score;
+    this.save();
+    return broken;
   }
 
   private applyReward(reward: string): void {

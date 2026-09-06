@@ -7,6 +7,9 @@ import { listBeaches } from '@/world/beaches';
 import { AudioManager } from '@/audio/audio';
 import { BootScreen, MenuScreen, ResultsScreen, type MenuItem, type ResultRow } from '@/ui/screens';
 import { RideScene } from './rideScene';
+import { SplitScene, type SplitMode } from './splitScene';
+import { KEYMAP_P1, KEYMAP_P2, KEYMAP_SOLO, keymapHint } from '@/input/keymaps';
+import { timeAttackSeconds } from '@/modes/push';
 import { CareerSave } from '@/save/career';
 import { listLevels, getLevel } from '@/goals/levels';
 import { getBeach } from '@/world/beaches';
@@ -14,7 +17,7 @@ import { listRiders, listBoards, getRider, getBoard, effectiveStats, statBar } f
 import { TrickBookScreen } from '@/ui/trickBook';
 import { TUNING as T } from '@/core/tuning';
 
-type Flow = 'boot' | 'menu' | 'ride' | 'paused' | 'results';
+type Flow = 'boot' | 'menu' | 'ride' | 'paused' | 'results' | 'split' | 'interstitial';
 
 /**
  * The game shell: boot screen (audio + gamepad unlock) → main menu → ride → results.
@@ -24,7 +27,13 @@ export class MainGameScene implements GameScene {
   readonly name = 'game';
   private ctx!: SceneContext;
   private flow: Flow = 'boot';
-  private input = new InputManager(TUNING.input.deadzone);
+  private input = new InputManager(TUNING.input.deadzone, KEYMAP_SOLO, null);
+  private input2 = new InputManager(TUNING.input.deadzone, KEYMAP_P2, 1);
+  private split: SplitScene | null = null;
+  private lastInput2: Readonly<RiderInput> = NEUTRAL_INPUT;
+  private handicap = 1;
+  private timeAttack: { stage: 1 | 2; p1Score: number; p2Seconds: number } | null = null;
+  private rider2Index = 1;
   private audio = new AudioManager();
   private boot: BootScreen | null = null;
   private menu: MenuScreen | null = null;
@@ -49,6 +58,7 @@ export class MainGameScene implements GameScene {
   init(ctx: SceneContext): void {
     this.ctx = ctx;
     this.input.attach(window);
+    this.input2.attach(window);
     this.boot = new BootScreen(ctx.uiRoot, 'LINE-UP', 'SURF · TRICK · LINK · CASH IN', 'PRESS ANY KEY OR BUTTON<br><span style="font-size:13px;letter-spacing:1px;opacity:.8">(press a key or click once for sound)</span>');
     const wantBeach = ctx.params.get('beach');
     if (wantBeach) {
@@ -73,7 +83,129 @@ export class MainGameScene implements GameScene {
       this.boot = null;
       this.freeSurf = ctx.params.get('free') === '1';
       this.beginRun(ctx.params.get('level'));
+    } else if (flow === 'push' || flow === 'head') {
+      this.boot?.dispose();
+      this.boot = null;
+      this.beginSplit(flow);
     }
+  }
+
+  private beginSplit(mode: SplitMode): void {
+    this.menu?.dispose();
+    this.menu = null;
+    this.ride?.dispose();
+    this.ride = null;
+    this.input.setKeymap(KEYMAP_P1);
+    this.input.gamepadIndex = 0;
+    const params = new URLSearchParams(this.ctx.params);
+    const beach = this.beaches[this.beachIndex]!;
+    params.set('beach', beach.id);
+    params.set('ft', String(this.waveFt));
+    params.set('rider', this.availableRiders()[this.riderIndex]!.id);
+    params.set('rider2', this.availableRiders()[this.rider2Index % this.availableRiders().length]!.id);
+    params.set('board', this.availableBoards()[this.boardIndex]!.id);
+    params.set('handicap', String(this.handicap));
+    if (this.ctx.params.get('auto') === '1') params.set('auto2', '1');
+    const pads = InputManager.padCount();
+    const hints: [string, string] = [
+      pads >= 1 ? 'pad 1' : `keys: ${keymapHint(KEYMAP_P1)}`,
+      pads >= 2 ? 'pad 2' : `keys: ${keymapHint(KEYMAP_P2)}`,
+    ];
+    this.split = new SplitScene(mode, 120, this.audio, hints);
+    this.split.init({ ...this.ctx, params });
+    this.flow = 'split';
+    this.split.onEnd = (r) => {
+      this.split?.dispose();
+      this.split = null;
+      this.input.setKeymap(KEYMAP_SOLO);
+      this.input.gamepadIndex = null;
+      this.results = new ResultsScreen(
+        this.ctx.uiRoot,
+        mode === 'push' ? 'PUSH' : 'HEAD TO HEAD',
+        r.winner ? `PLAYER ${r.winner} WINS` : 'DRAW',
+        [
+          { label: 'Player 1', value: r.scores[0].toLocaleString('en-US'), ok: r.winner === 1 },
+          { label: 'Player 2', value: r.scores[1].toLocaleString('en-US'), ok: r.winner === 2 },
+          ...(mode === 'push' ? [{ label: 'Screen owned', value: `${Math.round(r.shares[0] * 100)}% / ${Math.round(r.shares[1] * 100)}%` }] : []),
+        ],
+        'A / Space: back to the boat',
+      );
+      this.results.prime(this.lastInput);
+      this.results.onDone = () => {
+        this.results?.dispose();
+        this.results = null;
+        this.startRide(true);
+        this.openMenu();
+      };
+      this.flow = 'results';
+    };
+  }
+
+  private beginTimeAttack(): void {
+    this.timeAttack = { stage: 1, p1Score: 0, p2Seconds: 120 };
+    this.freeSurf = false;
+    this.beginRun(null, 120, 'PLAYER 1');
+  }
+
+  private openMultiplayer(): void {
+    this.flow = 'menu';
+    this.menu?.dispose();
+    const pads = InputManager.padCount();
+    this.menu = new MenuScreen(
+      this.ctx.uiRoot,
+      'MULTIPLAYER',
+      [
+        { id: 'head', label: 'Head to Head (split screen)', onSelect: () => { this.audio.uiSelect(); this.beginSplit('head'); } },
+        { id: 'push', label: 'Push (the divider moves)', onSelect: () => { this.audio.uiSelect(); this.beginSplit('push'); } },
+        { id: 'time', label: 'Time Attack (turns)', onSelect: () => { this.audio.uiSelect(); this.beginTimeAttack(); } },
+        {
+          id: 'rider2',
+          label: 'Player 2 surfer',
+          value: () => this.availableRiders()[this.rider2Index % this.availableRiders().length]!.name,
+          onAdjust: (d) => {
+            const n = this.availableRiders().length;
+            this.rider2Index = (this.rider2Index + d + n) % n;
+            this.audio.uiMove();
+          },
+        },
+        {
+          id: 'handicap',
+          label: 'Handicap (stats ×)',
+          value: () => `${this.handicap.toFixed(2)}`,
+          onAdjust: (d) => {
+            this.handicap = Math.max(0.6, Math.min(1.4, +(this.handicap + d * 0.1).toFixed(2)));
+            this.audio.uiMove();
+          },
+        },
+        { id: 'pads', label: 'Controllers', value: () => `${pads} connected · P1: pad 1 or ${keymapHint(KEYMAP_P1).split(' · ')[0]} · P2: pad 2 or ${keymapHint(KEYMAP_P2).split(' · ')[0]}`, disabled: true },
+        { id: 'back', label: 'Back to the boat', onSelect: () => this.openMenu() },
+      ],
+      'Player 2 keyboard: W/A/S/D move · F jump · G carve · H grab · V slide · R/T spin · B cash in',
+    );
+    this.menu.prime(this.lastInput);
+    this.menu.onBack = () => this.openMenu();
+  }
+
+  private openRecords(): void {
+    this.menu?.dispose();
+    this.menu = null;
+    const r = this.career.data.records;
+    const rows = [
+      { label: 'Best session', value: r.bestScore.toLocaleString('en-US') },
+      { label: 'Best chain', value: r.bestChain.toLocaleString('en-US') },
+      { label: 'Longest tube', value: `${r.longestTube.toFixed(1)} s` },
+      { label: 'Most special time', value: `${r.mostSpecialTime.toFixed(1)} s` },
+      ...Object.entries(r.perBeach).map(([b, v]) => ({ label: getBeach(b).name, value: v.toLocaleString('en-US') })),
+      ...Object.entries(r.byRider).map(([rid, v]) => ({ label: getRider(rid).name, value: v.toLocaleString('en-US') })),
+    ];
+    this.results = new ResultsScreen(this.ctx.uiRoot, 'RECORD BOOK', '', rows, 'A / Space: back');
+    this.results.prime(this.lastInput);
+    this.results.onDone = () => {
+      this.results?.dispose();
+      this.results = null;
+      this.openMenu();
+    };
+    this.flow = 'results';
   }
 
   private beaches = (() => {
@@ -98,6 +230,13 @@ export class MainGameScene implements GameScene {
       else params.delete('free');
       if (this.levelId) params.set('level', this.levelId);
       else params.delete('level');
+      if (this.runSeconds) params.set('seconds', String(this.runSeconds));
+      else params.delete('seconds');
+      if (this.runLabel) params.set('player', this.runLabel);
+      else params.delete('player');
+      if (this.iconChallenge) params.set('iconChallenge', '1');
+      else params.delete('iconChallenge');
+      params.set('handicap', this.levelId ? '1' : String(this.handicap));
       const st = this.career.data.stats;
       params.set('boosts', JSON.stringify({ spin: st.spin * 3, speed: st.speed * 3, air: st.air * 3, balance: st.balance * 3 }));
       params.set('learned', this.career.data.rewards.filter((r) => r.startsWith('trick:')).map((r) => r.slice(6)).join(','));
@@ -176,7 +315,35 @@ export class MainGameScene implements GameScene {
           onSelect: () => {
             this.audio.uiSelect();
             this.freeSurf = false;
+            this.iconChallenge = false;
             this.beginRun();
+          },
+        },
+        {
+          id: 'icons',
+          label: 'Icon Challenge',
+          onSelect: () => {
+            this.audio.uiSelect();
+            this.freeSurf = false;
+            this.iconChallenge = true;
+            this.beginRun();
+            this.iconChallenge = false;
+          },
+        },
+        {
+          id: 'multi',
+          label: 'Multiplayer',
+          onSelect: () => {
+            this.audio.uiSelect();
+            this.openMultiplayer();
+          },
+        },
+        {
+          id: 'records',
+          label: 'Record Book',
+          onSelect: () => {
+            this.audio.uiSelect();
+            this.openRecords();
           },
         },
         {
@@ -261,12 +428,18 @@ export class MainGameScene implements GameScene {
     this.audio.music?.play();
   }
 
-  private beginRun(levelId: string | null = null): void {
+  private runSeconds: number | null = null;
+  private runLabel = '';
+  private iconChallenge = false;
+
+  private beginRun(levelId: string | null = null, seconds: number | null = null, label = ''): void {
     this.menu?.dispose();
     this.menu = null;
     this.careerMenu?.dispose();
     this.careerMenu = null;
     this.levelId = levelId;
+    this.runSeconds = seconds;
+    this.runLabel = label;
     if (levelId) {
       const lvl = getLevel(levelId);
       const bi = this.beaches.findIndex((b) => b.id === lvl.beach);
@@ -312,6 +485,48 @@ export class MainGameScene implements GameScene {
     const beach = this.beaches[this.beachIndex]!;
     const goalRows: ResultRow[] = [];
     let title = 'SESSION OVER';
+    if (this.timeAttack) {
+      const ta = this.timeAttack;
+      if (ta.stage === 1) {
+        ta.p1Score = run.score;
+        ta.p2Seconds = timeAttackSeconds(120, run.score, 1 / 1500, 30);
+        ta.stage = 2;
+        this.results = new ResultsScreen(this.ctx.uiRoot, 'TIME ATTACK', run.score.toLocaleString('en-US'), [
+          { label: 'Player 1 score', value: run.score.toLocaleString('en-US') },
+          { label: 'Player 2 gets', value: `${Math.round(ta.p2Seconds)} s` },
+        ], 'A / Space: player 2, you are up');
+        this.results.prime(this.lastInput);
+        this.results.onDone = () => {
+          this.results?.dispose();
+          this.results = null;
+          this.riderIndex = this.rider2Index % this.availableRiders().length;
+          this.beginRun(null, Math.round(ta.p2Seconds), 'PLAYER 2');
+        };
+        return;
+      }
+      const p2 = run.score;
+      const winner = p2 === ta.p1Score ? null : p2 > ta.p1Score ? 2 : 1;
+      this.timeAttack = null;
+      this.results = new ResultsScreen(this.ctx.uiRoot, 'TIME ATTACK', winner ? `PLAYER ${winner} WINS` : 'DRAW', [
+        { label: 'Player 1', value: ta.p1Score.toLocaleString('en-US'), ok: winner === 1 },
+        { label: 'Player 2', value: p2.toLocaleString('en-US'), ok: winner === 2 },
+      ], 'A / Space: back to the boat');
+      this.results.prime(this.lastInput);
+      this.results.onDone = () => {
+        this.results?.dispose();
+        this.results = null;
+        this.startRide(true);
+        this.openMenu();
+      };
+      return;
+    }
+    const broken = this.career.recordSession(beach.id, this.availableRiders()[this.riderIndex]!.id, {
+      score: run.score,
+      bestChain: run.bestChain,
+      longestTube: run.longestTube,
+      specialTime: run.meter.totalYellowSeconds,
+    });
+    for (const b of broken) goalRows.push({ label: 'New record', value: b, ok: true });
     if (this.ride.level && this.ride.goals) {
       const lvl = this.ride.level;
       const tracker = this.ride.goals;
@@ -361,7 +576,12 @@ export class MainGameScene implements GameScene {
           label: 'Restart run',
           onSelect: () => {
             this.closePause();
-            this.beginRun();
+            if (this.split) {
+              const mode = this.split['mode' as keyof SplitScene] as unknown as SplitMode;
+              this.split.dispose();
+              this.split = null;
+              this.beginSplit(mode);
+            } else this.beginRun(this.levelId, this.runSeconds, this.runLabel);
           },
         },
         {
@@ -369,7 +589,8 @@ export class MainGameScene implements GameScene {
           label: 'End session',
           onSelect: () => {
             this.closePause();
-            this.ride?.run.end('ended');
+            if (this.split) for (const r of this.split.rides) r.run.end('ended');
+            else this.ride?.run.end('ended');
           },
         },
         {
@@ -377,6 +598,11 @@ export class MainGameScene implements GameScene {
           label: 'Back to the boat',
           onSelect: () => {
             this.closePause();
+            this.split?.dispose();
+            this.split = null;
+            this.timeAttack = null;
+            this.input.setKeymap(KEYMAP_SOLO);
+            this.input.gamepadIndex = null;
             this.startRide(true);
             this.openMenu();
           },
@@ -392,7 +618,7 @@ export class MainGameScene implements GameScene {
   private closePause(): void {
     this.pause?.dispose();
     this.pause = null;
-    if (this.flow === 'paused') this.flow = 'ride';
+    if (this.flow === 'paused') this.flow = this.split ? 'split' : 'ride';
   }
 
   private async toggleFullscreen(): Promise<void> {
@@ -433,7 +659,7 @@ export class MainGameScene implements GameScene {
         break;
       }
       case 'paused': {
-        const pausePressed = inp.pause && !this.prevPause;
+        const pausePressed = (inp.pause || this.lastInput2.pause) && !this.prevPause;
         if (pausePressed) this.closePause();
         else this.pause?.update(inp, dt);
         break;
@@ -442,13 +668,25 @@ export class MainGameScene implements GameScene {
         this.ride?.step(dt);
         this.results?.update(inp, dt);
         break;
+      case 'split': {
+        const pausePressed = (inp.pause || this.lastInput2.pause) && !this.prevPause;
+        if (pausePressed) this.openPause();
+        else {
+          this.split?.setInputs(inp, this.lastInput2);
+          this.split?.step(dt);
+        }
+        break;
+      }
+      case 'interstitial':
+        break;
     }
-    this.prevPause = inp.pause;
+    this.prevPause = inp.pause || this.lastInput2.pause;
   }
 
   render(alpha: number): void {
     const inp = this.input.poll();
     this.lastInput = { ...inp };
+    this.lastInput2 = { ...this.input2.poll() };
     // global hotkeys (keyboard only): M mute, F fullscreen
     const keys = (this.input as unknown as { keys: Set<string> }).keys;
     const mute = keys.has('KeyM');
@@ -459,11 +697,12 @@ export class MainGameScene implements GameScene {
     this.prevFull = full;
     if (this.audio.ready && this.flow !== 'boot') this.audio.music?.play();
     void alpha;
-    this.ride?.render();
+    if (this.split) this.split.render();
+    else this.ride?.render();
   }
 
   cameras(): THREE.PerspectiveCamera[] {
-    return this.ride?.cameras() ?? [];
+    return this.split ? [] : (this.ride?.cameras() ?? []);
   }
 
   dispose(): void {
@@ -473,7 +712,9 @@ export class MainGameScene implements GameScene {
     this.results?.dispose();
     this.trickBook?.dispose();
     this.boot?.dispose();
+    this.split?.dispose();
     this.input.detach(window);
+    this.input2.detach(window);
   }
 
   debugState(): Record<string, unknown> {

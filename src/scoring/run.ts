@@ -47,6 +47,7 @@ export class RunController {
   longestRide = 0;
   wipeouts = 0;
   private tubeSeconds = 0;
+  longestTube = 0;
   private tubeActive = false;
   private floaterActive = false;
   private floaterSeconds = 0;
@@ -117,6 +118,7 @@ export class RunController {
   private endTube(): void {
     if (!this.tubeActive) return;
     this.tubeActive = false;
+    this.longestTube = Math.max(this.longestTube, this.tubeSeconds);
     this.chain.endLive('tube');
     this.events.emit('tubeScore', { seconds: this.tubeSeconds, value: this.tubeValue(this.tubeSeconds) });
   }

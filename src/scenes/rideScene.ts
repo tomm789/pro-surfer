@@ -94,12 +94,31 @@ export class RideScene implements GameScene {
   onEnd: (() => void) | null = null;
   private externalInput: Readonly<RiderInput> | null = null;
   private attractTimer = 0;
+  /** Viewport in normalised screen coords (x, y, w, h); null = full canvas. */
+  viewport: { x: number; y: number; w: number; h: number } | null = null;
+  /** Player label for multiplayer HUDs. */
+  playerLabel = '';
+  /** Controls hint override (multiplayer: each player sees their own keys or pad). */
+  controlsHint: string | null = null;
 
   init(ctx: SceneContext): void {
     this.renderer = ctx.renderer;
     this.headless = ctx.headless;
     const levelId = ctx.params.get('level');
     this.level = levelId ? getLevel(levelId) : null;
+    if (ctx.params.get('iconChallenge') === '1') {
+      const beachId = ctx.params.get('beach') ?? 'sandbar';
+      this.level = {
+        id: `icons-${beachId}`,
+        beach: beachId,
+        name: 'Icon Challenge',
+        order: 999,
+        waveFt: Number(ctx.params.get('ft') ?? 8),
+        seconds: Number(ctx.params.get('seconds') ?? 180),
+        goals: [{ id: 'icons', type: 'icons', count: 30, score: 0, hints: true, required: true }],
+        unlocks: [],
+      };
+    }
     const beach = getBeach(this.level?.beach ?? ctx.params.get('beach') ?? 'sandbar');
     this.waveFt = this.level ? this.level.waveFt : Number(ctx.params.get('ft') ?? 8);
     this.auto = ctx.params.get('auto') === '1';
@@ -112,6 +131,8 @@ export class RideScene implements GameScene {
     const boostsRaw = ctx.params.get('boosts');
     const boosts = boostsRaw ? (JSON.parse(boostsRaw) as { spin: number; speed: number; air: number; balance: number }) : { spin: 0, speed: 0, air: 0, balance: 0 };
     const stats = effectiveStats(riderDef, boardDef, boosts, TUNING.stats);
+    const handicap = Number(ctx.params.get('handicap') ?? 1) || 1;
+    for (const k of ['spin', 'speed', 'air', 'balance'] as const) stats[k] = Math.max(0.05, Math.min(1, stats[k] * handicap));
     this.rider = new RiderSim(this.wave, TUNING, stats, this.events, undefined, new Rng(ctx.seed + 7));
     this.tricks = new TrickSystem(this.rider, TUNING, this.trickEvents, this.events);
     // specials: the rider's own set plus any learned through career rewards; everything else is open
@@ -201,6 +222,8 @@ export class RideScene implements GameScene {
     this.attract = this.attract || ctx.params.get('attract') === '1';
     this.hud = new Hud(ctx.uiRoot);
     if (this.attract) this.hud.root.style.display = 'none';
+    if (ctx.params.get('hudScale')) this.hud.root.style.zoom = ctx.params.get('hudScale')!;
+    this.playerLabel = ctx.params.get('player') ?? '';
     this.hudState = {
       score: 0,
       clock: this.run.clock,
@@ -211,7 +234,7 @@ export class RideScene implements GameScene {
       chainBase: 0,
       chainMultiplier: 0,
       chainOpen: false,
-      objective: this.level ? [`${beach.name.toUpperCase()} · ${this.level.name.toUpperCase()}`, ...this.goals!.hudLines()] : ['FREE SURF', `${beach.name} · ${this.waveFt} ft ${beach.breakDirection}`],
+      objective: this.level ? [`${beach.name.toUpperCase()} · ${this.level.name.toUpperCase()}`, ...this.goals!.hudLines()] : [this.playerLabel || 'FREE SURF', `${beach.name} · ${this.waveFt} ft ${beach.breakDirection}`],
       waveHeightFt: this.waveFt,
       nextWaveFt: null,
       sectionsAhead: [],
@@ -559,7 +582,9 @@ export class RideScene implements GameScene {
     s.balance = r.state === 'tube' ? r.tube.balance : null;
     s.tubeDepth = r.tube.depth;
     s.tubeState = r.state;
-    s.hint = this.inputManager.gamepadName
+    s.hint = this.controlsHint
+      ? this.controlsHint
+      : this.inputManager.gamepadName
       ? `pad: ${this.inputManager.gamepadName.slice(0, 40)}`
       : r.state === 'prone'
         ? 'L / Y: stand up · ←→: paddle along the wave'
@@ -580,7 +605,24 @@ export class RideScene implements GameScene {
     this.objectViews.update(this.objects, this.wave);
     this.landmarks.update(this.cam.camera.position.x);
     this.env.update(this.cam.camera.position, this.riderView.group.position);
-    this.renderer.render(this.scene, this.cam.camera);
+    if (this.viewport) {
+      const size = this.renderer.getSize(new THREE.Vector2());
+      const px = Math.round(this.viewport.x * size.x);
+      const py = Math.round(this.viewport.y * size.y);
+      const pw = Math.max(1, Math.round(this.viewport.w * size.x));
+      const ph = Math.max(1, Math.round(this.viewport.h * size.y));
+      this.renderer.setViewport(px, py, pw, ph);
+      this.renderer.setScissor(px, py, pw, ph);
+      this.renderer.setScissorTest(true);
+      const cam = this.cam.camera;
+      if (Math.abs(cam.aspect - pw / ph) > 1e-3) {
+        cam.aspect = pw / ph;
+        cam.updateProjectionMatrix();
+      }
+      this.renderer.render(this.scene, cam);
+      this.renderer.setScissorTest(false);
+      this.renderer.setViewport(0, 0, size.x, size.y);
+    } else this.renderer.render(this.scene, this.cam.camera);
   }
 
   cameras(): THREE.PerspectiveCamera[] {
