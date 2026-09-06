@@ -113,6 +113,12 @@ export class RideScene implements GameScene {
   private paramsString = '';
   private seed = 1;
   private replayChrome: HTMLElement[] = [];
+  /** Receives scrapbook photos (photo-goal shutters, replay snapshots). */
+  onPhoto: ((p: { data: string; value: number; caption: string }) => void) | null = null;
+  private photoRequest: { value: number; caption: string } | null = null;
+  private thumb: HTMLCanvasElement | null = null;
+  private prevSnap = false;
+  private onHeadlessInput: ((e: Event) => void) | null = null;
 
   /** Hide/show this ride's HUD (the game shell hides a finished ride's HUD behind a replay). */
   setHudVisible(visible: boolean): void {
@@ -247,13 +253,16 @@ export class RideScene implements GameScene {
     this.rider.pose(this.pose);
     this.cam.snapTo(this.pose, this.wave.params.direction);
     if (!ctx.headless && !this.attract && !ctx.params.has('hosted')) this.inputManager.attach(window);
-    window.addEventListener('lineup:input', (e) => {
-      const d = (e as CustomEvent).detail as Partial<RiderInput> | { script: { t: number; input: Partial<RiderInput> }[] } | null;
+    const applyHeadless = (d: Partial<RiderInput> | { script: { t: number; input: Partial<RiderInput> }[] } | null | undefined) => {
       if (d && 'script' in d && Array.isArray(d.script)) {
         this.inputScript = d.script.slice().sort((a, b) => a.t - b.t);
         this.headlessInput = cloneInput(NEUTRAL_INPUT);
       } else this.headlessInput = d ? { ...cloneInput(NEUTRAL_INPUT), ...(d as Partial<RiderInput>) } : null;
-    });
+    };
+    this.onHeadlessInput = (e: Event) => applyHeadless((e as CustomEvent).detail);
+    window.addEventListener('lineup:input', this.onHeadlessInput);
+    // a script sent before this ride existed (the game shell starts rides behind a wipe)
+    if (ctx.headless) applyHeadless((window as unknown as { __lineupInput?: Partial<RiderInput> | { script: { t: number; input: Partial<RiderInput> }[] } | null }).__lineupInput);
 
     this.attract = this.attract || ctx.params.get('attract') === '1';
     this.hud = new Hud(ctx.uiRoot);
@@ -505,8 +514,16 @@ export class RideScene implements GameScene {
     if (this.replay) {
       // replays re-simulate the recorded inputs; auto/assist were already baked into them
       const k = this.replay.inputAt(this.frame);
+      const live = input;
       input = k.input;
       bank = k.cashIn;
+      // grab during a replay takes a snapshot for the scrapbook
+      if (live.grab && !this.prevSnap) {
+        this.photoRequest = { value: 0, caption: 'Replay snapshot' };
+        this.hud.flash('SNAP · saved to the scrapbook', 'info', 1.2);
+        this.audio?.shutter();
+      }
+      this.prevSnap = live.grab;
     } else {
       if (this.auto && this.rider.state === 'prone' && this.rider.stateTime > 0.8) input = { ...input, stand: true };
       if (this.assistBalance && this.rider.state === 'tube') {
@@ -558,6 +575,8 @@ export class RideScene implements GameScene {
         else if (cue === 'shutter') {
           this.audio?.shutter();
           this.log(`photo ${this.photo.lastValue}`);
+          const shot = this.photo.shots[this.photo.shots.length - 1];
+          this.photoRequest = { value: this.photo.lastValue, caption: shot?.trick || 'Photo' };
         }
       }
       const carving = (input.carve || Math.abs(r.heading) > 0.5) && r.state === 'face';
@@ -706,6 +725,34 @@ export class RideScene implements GameScene {
       this.renderer.setScissorTest(false);
       this.renderer.setViewport(0, 0, size.x, size.y);
     } else this.renderer.render(this.scene, this.cam.camera);
+    if (this.photoRequest) this.capturePhoto();
+  }
+
+  /** Copy the freshly rendered frame into a 16:9 JPEG thumbnail for the scrapbook. */
+  private capturePhoto(): void {
+    const req = this.photoRequest!;
+    this.photoRequest = null;
+    if (!this.onPhoto) return;
+    try {
+      const src = this.renderer.domElement;
+      if (!this.thumb) {
+        this.thumb = document.createElement('canvas');
+        this.thumb.width = 480;
+        this.thumb.height = 270;
+      }
+      const c = this.thumb.getContext('2d');
+      if (!c) return;
+      const sw = src.width;
+      const sh = src.height;
+      let cw = sw;
+      let ch = sh;
+      if (sw / sh > 16 / 9) cw = sh * (16 / 9);
+      else ch = sw / (16 / 9);
+      c.drawImage(src, (sw - cw) / 2, (sh - ch) / 2, cw, ch, 0, 0, this.thumb.width, this.thumb.height);
+      this.onPhoto({ data: this.thumb.toDataURL('image/jpeg', 0.72), value: req.value, caption: req.caption });
+    } catch {
+      /* canvas read blocked */
+    }
   }
 
   cameras(): THREE.PerspectiveCamera[] {
@@ -719,6 +766,7 @@ export class RideScene implements GameScene {
     this.landmarks.dispose();
     this.env.dispose();
     this.inputManager.detach(window);
+    if (this.onHeadlessInput) window.removeEventListener('lineup:input', this.onHeadlessInput);
     this.hud.dispose();
     for (const el of this.replayChrome) el.remove();
     this.replayChrome = [];

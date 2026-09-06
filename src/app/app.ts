@@ -132,6 +132,8 @@ export class App {
       }),
       setInput: (input) => {
         this.inputOverride = input;
+        // scenes created later (behind a transition) read the pending value on init
+        (window as unknown as { __lineupInput?: unknown }).__lineupInput = input;
         window.dispatchEvent(new CustomEvent('lineup:input', { detail: input }));
       },
     };

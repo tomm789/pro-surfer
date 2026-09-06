@@ -7,6 +7,9 @@ import { listBeaches } from '@/world/beaches';
 import { AudioManager } from '@/audio/audio';
 import { BootScreen, MenuNav, MenuScreen, ResultsScreen, type MenuItem, type ResultRow } from '@/ui/screens';
 import { ReplayPlayer, type Recording } from '@/core/replay';
+import { Transition } from '@/ui/transition';
+import { Scrapbook } from '@/save/scrapbook';
+import { ScrapbookScreen } from '@/ui/scrapbook';
 import { RideScene } from './rideScene';
 import { SplitScene, type SplitMode } from './splitScene';
 import { KEYMAP_P1, KEYMAP_P2, KEYMAP_SOLO, keymapHint } from '@/input/keymaps';
@@ -55,9 +58,40 @@ export class MainGameScene implements GameScene {
   private prevMute = false;
   private prevFull = false;
   private menuUpdatedThisFrame = false;
+  private transition!: Transition;
+  private scrapbook = new Scrapbook();
+  private scrapbookScreen: ScrapbookScreen | null = null;
+
+  /** Switch scenes behind a TV wipe; ignored while a wipe is already running (no double switches). */
+  private switchTo(mid: () => void, style: 'wipe' | 'fade' = 'wipe'): void {
+    if (this.transition.active) return;
+    this.transition.run(mid, style);
+  }
+
+  private savePhoto(p: { data: string; value: number; caption: string }): void {
+    const beach = this.beaches[this.beachIndex]!;
+    const rider = this.availableRiders()[this.riderIndex]!;
+    this.scrapbook.add({ ...p, beach: beach.name, rider: rider.name });
+  }
+
+  private openScrapbook(): void {
+    this.flow = 'menu';
+    this.menu?.dispose();
+    this.menu = null;
+    this.scrapbookScreen?.dispose();
+    this.scrapbookScreen = new ScrapbookScreen(this.ctx.uiRoot, this.scrapbook.photos.slice());
+    this.scrapbookScreen.prime(this.lastInput);
+    this.scrapbookScreen.onDelete = (id) => this.scrapbook.remove(id);
+    this.scrapbookScreen.onBack = () => {
+      this.scrapbookScreen?.dispose();
+      this.scrapbookScreen = null;
+      this.openMenu();
+    };
+  }
 
   init(ctx: SceneContext): void {
     this.ctx = ctx;
+    this.transition = new Transition(ctx.uiRoot);
     this.input.attach(window);
     this.input2.attach(window);
     this.boot = new BootScreen(ctx.uiRoot, 'LINE-UP', 'SURF · TRICK · LINK · CASH IN', 'PRESS ANY KEY OR BUTTON<br><span style="font-size:13px;letter-spacing:1px;opacity:.8">(press a key or click once for sound)</span>');
@@ -133,10 +167,12 @@ export class MainGameScene implements GameScene {
       );
       this.results.prime(this.lastInput);
       this.results.onDone = () => {
-        this.results?.dispose();
-        this.results = null;
-        this.startRide(true);
-        this.openMenu();
+        this.switchTo(() => {
+          this.results?.dispose();
+          this.results = null;
+          this.startRide(true);
+          this.openMenu();
+        });
       };
       this.flow = 'results';
     };
@@ -247,6 +283,7 @@ export class MainGameScene implements GameScene {
     params.set('board', this.availableBoards()[this.boardIndex]!.id);
     this.ride = new RideScene();
     this.ride.audio = this.audio;
+    if (!background) this.ride.onPhoto = (p) => this.savePhoto(p);
     this.ride.init({ ...this.ctx, params });
     if (background) this.ride.attract = true;
   }
@@ -287,6 +324,8 @@ export class MainGameScene implements GameScene {
     this.flow = 'menu';
     this.careerMenu?.dispose();
     this.careerMenu = null;
+    this.scrapbookScreen?.dispose();
+    this.scrapbookScreen = null;
     this.menu?.dispose();
     this.menu = new MenuScreen(
       this.ctx.uiRoot,
@@ -345,6 +384,15 @@ export class MainGameScene implements GameScene {
           onSelect: () => {
             this.audio.uiSelect();
             this.openRecords();
+          },
+        },
+        {
+          id: 'scrapbook',
+          label: 'Scrapbook',
+          value: () => `${this.scrapbook.photos.length} photo${this.scrapbook.photos.length === 1 ? '' : 's'}`,
+          onSelect: () => {
+            this.audio.uiSelect();
+            this.openScrapbook();
           },
         },
         {
@@ -440,6 +488,11 @@ export class MainGameScene implements GameScene {
 
   /** Re-simulate the recorded run from just before its best chain, TV-directed. */
   private playReplay(rec: Recording): void {
+    if (!rec.highlight) return;
+    this.switchTo(() => this.playReplayNow(rec));
+  }
+
+  private playReplayNow(rec: Recording): void {
     const hl = rec.highlight;
     if (!hl) return;
     const params = new URLSearchParams(rec.params);
@@ -448,6 +501,7 @@ export class MainGameScene implements GameScene {
     const ride = new RideScene();
     ride.replay = new ReplayPlayer(rec);
     ride.replayPoints = hl.points;
+    ride.onPhoto = (p) => this.savePhoto(p);
     ride.init({ ...this.ctx, params, seed: rec.seed });
     this.replayRide = ride;
     this.replaySeek = hl.startFrame;
@@ -463,6 +517,7 @@ export class MainGameScene implements GameScene {
   private stepReplay(inp: Readonly<RiderInput>, dt: number): void {
     const r = this.replayRide;
     if (!r) return;
+    r.setInput(inp);
     if (r.frameIndex < this.replaySeek) {
       // rewind: silent fast-forward to the start of the highlight
       for (let i = 0; i < 400 && r.frameIndex < this.replaySeek; i++) r.step(dt);
@@ -479,6 +534,10 @@ export class MainGameScene implements GameScene {
   }
 
   private endReplay(): void {
+    this.switchTo(() => this.endReplayNow());
+  }
+
+  private endReplayNow(): void {
     this.replayRide?.dispose();
     this.replayRide = null;
     this.ride?.setHudVisible(true);
@@ -490,6 +549,10 @@ export class MainGameScene implements GameScene {
   }
 
   private beginRun(levelId: string | null = null, seconds: number | null = null, label = ''): void {
+    this.switchTo(() => this.beginRunNow(levelId, seconds, label));
+  }
+
+  private beginRunNow(levelId: string | null, seconds: number | null, label: string): void {
     this.menu?.dispose();
     this.menu = null;
     this.careerMenu?.dispose();
@@ -570,10 +633,12 @@ export class MainGameScene implements GameScene {
       ], 'A / Space: back to the boat');
       this.results.prime(this.lastInput);
       this.results.onDone = () => {
-        this.results?.dispose();
-        this.results = null;
-        this.startRide(true);
-        this.openMenu();
+        this.switchTo(() => {
+          this.results?.dispose();
+          this.results = null;
+          this.startRide(true);
+          this.openMenu();
+        });
       };
       return;
     }
@@ -616,11 +681,13 @@ export class MainGameScene implements GameScene {
     if (rec.highlight) this.results.onAlt = () => this.playReplay(rec);
     if (rec.highlight && this.ctx.params.get('autoreplay') === '1') this.playReplay(rec);
     this.results.onDone = () => {
-      this.results?.dispose();
-      this.results = null;
       this.audio.uiSelect();
-      this.startRide(true);
-      this.openMenu();
+      this.switchTo(() => {
+        this.results?.dispose();
+        this.results = null;
+        this.startRide(true);
+        this.openMenu();
+      });
     };
   }
 
@@ -693,6 +760,7 @@ export class MainGameScene implements GameScene {
   step(dt: number): void {
     const inp = this.lastInput;
     this.menuUpdatedThisFrame = false;
+    this.transition.update(dt);
     switch (this.flow) {
       case 'boot':
         this.ride?.step(dt);
@@ -708,6 +776,7 @@ export class MainGameScene implements GameScene {
         this.menu?.update(inp, dt);
         this.careerMenu?.update(inp, dt);
         this.trickBook?.update(inp, dt);
+        this.scrapbookScreen?.update(inp, dt);
         break;
       case 'ride': {
         const pausePressed = inp.pause && !this.prevPause;
@@ -772,6 +841,8 @@ export class MainGameScene implements GameScene {
 
   dispose(): void {
     this.replayRide?.dispose();
+    this.scrapbookScreen?.dispose();
+    this.transition.dispose();
     this.ride?.dispose();
     this.menu?.dispose();
     this.pause?.dispose();

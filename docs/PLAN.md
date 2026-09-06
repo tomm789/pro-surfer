@@ -13,7 +13,7 @@ Milestones follow design doc §13. Each ends with `npm run check` green and a he
 | M6 | Goals & career: all goal types, icon stack, photo director, three-heat contests, hazards + object cam, level data, boat hub, world map, trick book, saves | done |
 | M7 | Riders, boards, stats, unlock flow, suits, secret riders | done |
 | M8 | Free surf, icon challenge, handicap, split-screen head-to-head, Push, time attack, record book | done |
-| M9 | Presentation: rider model + animation, water polish (whitewater, spray, glint), beach landmarks, replays, music, TV transitions, scrapbook | partly done (rider model, water polish, spray, landmarks, music); replays/scrapbook/transitions next |
+| M9 | Presentation: rider model + animation, water polish (whitewater, spray, glint), beach landmarks, replays, music, TV transitions, scrapbook | done (procedural rider model; replays re-simulate the recorded inputs) |
 | M10 | Tuning pass (§14), tutorial beach, polish, hosted build + local run instructions, optional native wrapper | |
 
 ## Delivery to the Mac
