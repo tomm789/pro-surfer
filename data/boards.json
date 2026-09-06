@@ -1,0 +1,13 @@
+{
+  "$comment": "Quiver (design doc §8.2). mods are stat points added to the blended stat. unlock: 'start' or a reward id from level goals.",
+  "boards": [
+    { "id": "thruster", "name": "Thruster", "desc": "The everyday three-fin. Does everything, nothing badly.", "unlock": "start", "mods": { "spin": 0, "speed": 0, "air": 0, "balance": 0 }, "length": 1.9, "colour": "#f4f0e6" },
+    { "id": "fish", "name": "Fish", "desc": "Fast and loose in small surf.", "unlock": "board:fish", "mods": { "spin": 5, "speed": 10, "air": -5, "balance": -5 }, "length": 1.75, "colour": "#ffe27a" },
+    { "id": "twin", "name": "Twin Fin", "desc": "Skatey. Spins like a top, slides if you let it.", "unlock": "board:twin", "mods": { "spin": 12, "speed": 6, "air": 0, "balance": -10 }, "length": 1.8, "colour": "#ff7a3d" },
+    { "id": "gun", "name": "Gun", "desc": "Long and narrow for serious size. Holds a line.", "unlock": "board:gun", "mods": { "spin": -10, "speed": 8, "air": -4, "balance": 14 }, "length": 2.3, "colour": "#dfe8ee" },
+    { "id": "step-up", "name": "Step-Up", "desc": "A little extra length for a little extra wave.", "unlock": "board:step-up", "mods": { "spin": -2, "speed": 6, "air": 8, "balance": 4 }, "length": 2.05, "colour": "#cfe8ff" },
+    { "id": "pintail", "name": "Pintail", "desc": "Made for the barrel. Sits deep and drives.", "unlock": "board:pintail", "mods": { "spin": -6, "speed": 4, "air": -2, "balance": 12 }, "length": 2.0, "colour": "#e6f7ea" },
+    { "id": "rhino", "name": "Rhino Chaser", "desc": "For the outer banks. Speed and survival.", "unlock": "board:rhino", "mods": { "spin": -14, "speed": 14, "air": -6, "balance": 10 }, "length": 2.6, "colour": "#f2f2f2" },
+    { "id": "ultimate", "name": "Ultimate", "desc": "Perfect in every way. Earned, not bought.", "unlock": "board:ultimate", "mods": { "spin": 15, "speed": 15, "air": 15, "balance": 15 }, "length": 1.9, "colour": "#3ef0a0" }
+  ]
+}

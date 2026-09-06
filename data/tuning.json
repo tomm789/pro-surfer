@@ -183,7 +183,7 @@
     "lookAheadU": 6.0,
     "lookAheadSpeedScale": 0.35,
     "smoothing": 5.0,
-    "fov": 62,
+    "fov": 68,
     "wideDistance": 13,
     "wideHeight": 5.5,
     "tubeDistance": 4.5,

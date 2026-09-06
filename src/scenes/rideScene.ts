@@ -27,6 +27,10 @@ import { Contest } from '@/goals/contest';
 import { ObjectField, type ObjectEvents, type ObjectKind } from '@/world/objects';
 import { ObjectViews } from '@/render/objectViews';
 import type { Trick } from '@/tricks/catalogue';
+import { getRider, getBoard, effectiveStats, listRiders, listBoards } from '@/world/roster';
+import { TRICKS } from '@/tricks/catalogue';
+const TRICKS_ALL = TRICKS.all;
+import { Landmarks } from '@/render/landmarks';
 
 /**
  * Playable ride: wave + rider + tricks + scoring + HUD.
@@ -52,6 +56,7 @@ export class RideScene implements GameScene {
   objects!: ObjectField;
   readonly objectEvents = new EventBus<ObjectEvents>();
   private objectViews = new ObjectViews();
+  private landmarks!: Landmarks;
   private lastTrickLanded: Trick | null = null;
   private lastTrickTime = -10;
   private lastLandTime = -10;
@@ -102,10 +107,17 @@ export class RideScene implements GameScene {
     this.debug = ctx.params.get('debug') === '1';
     const params = waveParamsFromBeach(beach, waveFeetToMetres(this.waveFt), { warnSeconds: TUNING.wave.sectionWarnSeconds });
     this.wave = new WaveModel(params, new Rng(ctx.seed), 0);
-    const statsRaw = ctx.params.get('stats');
-    const stats = statsRaw ? (JSON.parse(statsRaw) as { spin: number; speed: number; air: number; balance: number }) : { spin: 0.5, speed: 0.5, air: 0.5, balance: 0.5 };
+    const riderDef = getRider(ctx.params.get('rider') ?? listRiders()[0]!.id);
+    const boardDef = getBoard(ctx.params.get('board') ?? listBoards()[0]!.id);
+    const boostsRaw = ctx.params.get('boosts');
+    const boosts = boostsRaw ? (JSON.parse(boostsRaw) as { spin: number; speed: number; air: number; balance: number }) : { spin: 0, speed: 0, air: 0, balance: 0 };
+    const stats = effectiveStats(riderDef, boardDef, boosts, TUNING.stats);
     this.rider = new RiderSim(this.wave, TUNING, stats, this.events, undefined, new Rng(ctx.seed + 7));
     this.tricks = new TrickSystem(this.rider, TUNING, this.trickEvents, this.events);
+    // specials: the rider's own set plus any learned through career rewards; everything else is open
+    const learned = (ctx.params.get('learned') ?? '').split(',').filter(Boolean);
+    const specialsAllowed = new Set([...riderDef.specials, ...learned]);
+    this.tricks.unlocked = ctx.params.get('alltricks') === '1' ? null : new Set(TRICKS_ALL.filter((t) => !t.special || specialsAllowed.has(t.id)).map((t) => t.id));
     const contestGoal = this.level?.goals.find((g) => g.type === 'contest');
     if (contestGoal && contestGoal.type === 'contest') {
       this.contest = new Contest(
@@ -158,14 +170,23 @@ export class RideScene implements GameScene {
     this.scene.add(this.env.group);
     this.waveMesh = new WaveMesh(this.uniforms);
     this.scene.add(this.waveMesh.mesh);
-    this.riderView = new RiderView(TUNING.rider.boardLength);
+    this.riderView = new RiderView(boardDef.length, {
+      suit: parseInt(riderDef.look.suit.slice(1), 16),
+      accent: parseInt(riderDef.look.accent.slice(1), 16),
+      skin: parseInt(riderDef.look.skin.slice(1), 16),
+      hair: parseInt(riderDef.look.hair.slice(1), 16),
+      board: parseInt(boardDef.colour.slice(1), 16),
+      boardAccent: parseInt(riderDef.look.boardAccent.slice(1), 16),
+    });
     this.scene.add(this.riderView.group);
+    this.landmarks = new Landmarks(beach);
+    this.scene.add(this.landmarks.group);
     this.spray = new SpraySystem();
     this.scene.add(this.spray.points);
     this.scene.add(this.objectViews.group);
     this.cam = new ChaseCamera(TUNING);
     const camParam = ctx.params.get('cam');
-    if (camParam === 'wide' || camParam === 'close') this.cam.mode = camParam;
+    if (camParam === 'wide' || camParam === 'close' || camParam === 'shore') this.cam.mode = camParam;
     this.rider.pose(this.pose);
     this.cam.snapTo(this.pose, this.wave.params.direction);
     if (!ctx.headless && !this.attract && !ctx.params.has('hosted')) this.inputManager.attach(window);
@@ -557,6 +578,7 @@ export class RideScene implements GameScene {
     this.uniforms.uAmpMask0.value = (this.waveMesh.zMin + this.waveMesh.zMax) / 2;
     this.uniforms.uAmpMask1.value = (this.waveMesh.zMax - this.waveMesh.zMin) / 2 - 8;
     this.objectViews.update(this.objects, this.wave);
+    this.landmarks.update(this.cam.camera.position.x);
     this.env.update(this.cam.camera.position, this.riderView.group.position);
     this.renderer.render(this.scene, this.cam.camera);
   }
@@ -569,6 +591,7 @@ export class RideScene implements GameScene {
     this.waveMesh.dispose();
     this.spray.dispose();
     this.objectViews.dispose();
+    this.landmarks.dispose();
     this.env.dispose();
     this.inputManager.detach(window);
     this.hud.dispose();

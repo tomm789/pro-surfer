@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Tuning } from '@/core/tuning';
 import type { RiderPose, RiderState } from '@/rider/rider';
 
-export type CameraMode = 'chase' | 'wide' | 'tube' | 'object' | 'close';
+export type CameraMode = 'chase' | 'wide' | 'tube' | 'object' | 'close' | 'shore';
 
 /**
  * Third-person camera that lives shoreward of the rider, looks down the line, and frames the curl.
@@ -54,6 +54,12 @@ export class ChaseCamera {
       height *= 1.15;
     }
     const p = pose.pos;
+    if (this.mode === 'shore') {
+      // debug: look from the rider toward the beach
+      this.desiredPos.set(p.x, p.y + 6, p.z + 14);
+      this.desiredLook.set(p.x + dir * 40, 4, p.z - 160);
+      return;
+    }
     if (state === 'tube' || (this.mode === 'tube' && state !== 'air')) {
       // inside the barrel: low and just behind the rider, looking out toward the exit
       this.desiredPos.set(p.x - dir * C.tubeDistance, p.y + C.tubeHeight, p.z - 0.4);

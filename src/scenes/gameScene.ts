@@ -10,6 +10,9 @@ import { RideScene } from './rideScene';
 import { CareerSave } from '@/save/career';
 import { listLevels, getLevel } from '@/goals/levels';
 import { getBeach } from '@/world/beaches';
+import { listRiders, listBoards, getRider, getBoard, effectiveStats, statBar } from '@/world/roster';
+import { TrickBookScreen } from '@/ui/trickBook';
+import { TUNING as T } from '@/core/tuning';
 
 type Flow = 'boot' | 'menu' | 'ride' | 'paused' | 'results';
 
@@ -34,6 +37,9 @@ export class MainGameScene implements GameScene {
   private career = new CareerSave();
   private levelId: string | null = null;
   private careerMenu: MenuScreen | null = null;
+  private trickBook: TrickBookScreen | null = null;
+  private riderIndex = 0;
+  private boardIndex = 0;
   private lastInput: Readonly<RiderInput> = NEUTRAL_INPUT;
   private prevPause = false;
   private prevMute = false;
@@ -70,7 +76,10 @@ export class MainGameScene implements GameScene {
     }
   }
 
-  private beaches = listBeaches();
+  private beaches = (() => {
+    const order = ['sandbar', 'pointbreak', 'reefpass', 'cove', 'slab', 'outer'];
+    return listBeaches().sort((a, b) => (order.indexOf(a.id) + 1 || 99) - (order.indexOf(b.id) + 1 || 99));
+  })();
 
   private startRide(background: boolean): void {
     this.ride?.dispose();
@@ -90,13 +99,48 @@ export class MainGameScene implements GameScene {
       if (this.levelId) params.set('level', this.levelId);
       else params.delete('level');
       const st = this.career.data.stats;
-      params.set('stats', JSON.stringify({ spin: 0.45 + st.spin * 0.5, speed: 0.45 + st.speed * 0.5, air: 0.45 + st.air * 0.5, balance: 0.45 + st.balance * 0.5 }));
+      params.set('boosts', JSON.stringify({ spin: st.spin * 3, speed: st.speed * 3, air: st.air * 3, balance: st.balance * 3 }));
+      params.set('learned', this.career.data.rewards.filter((r) => r.startsWith('trick:')).map((r) => r.slice(6)).join(','));
     }
     if (background) params.delete('level');
+    params.set('rider', this.availableRiders()[this.riderIndex]!.id);
+    params.set('board', this.availableBoards()[this.boardIndex]!.id);
     this.ride = new RideScene();
     this.ride.audio = this.audio;
     this.ride.init({ ...this.ctx, params });
     if (background) this.ride.attract = true;
+  }
+
+  private availableRiders() {
+    const careerDone = listLevels().every((l) => l.goals.filter((g) => g.required).every((g) => this.career.isGoalDone(l.id, g.id)));
+    return listRiders().filter((r) => !r.secret || careerDone || this.ctx.params.get('cheat') === 'riders');
+  }
+
+  private availableBoards() {
+    return listBoards().filter((b) => b.unlock === 'start' || this.career.data.rewards.includes(b.unlock) || this.ctx.params.get('cheat') === 'boards');
+  }
+
+  private statsLine(): string {
+    const r = this.availableRiders()[this.riderIndex]!;
+    const b = this.availableBoards()[this.boardIndex]!;
+    const st = this.career.data.stats;
+    const e = effectiveStats(r, b, { spin: st.spin * 3, speed: st.speed * 3, air: st.air * 3, balance: st.balance * 3 }, T.stats);
+    return `spin ${statBar(e.spin)}  speed ${statBar(e.speed)}  air ${statBar(e.air)}  balance ${statBar(e.balance)}`;
+  }
+
+  private openTrickBook(): void {
+    this.menu?.dispose();
+    this.menu = null;
+    const r = this.availableRiders()[this.riderIndex]!;
+    const learned = this.career.data.rewards.filter((x) => x.startsWith('trick:')).map((x) => x.slice(6));
+    this.trickBook?.dispose();
+    this.trickBook = new TrickBookScreen(this.ctx.uiRoot, new Set([...r.specials, ...learned]));
+    this.trickBook.prime(this.lastInput);
+    this.trickBook.onBack = () => {
+      this.trickBook?.dispose();
+      this.trickBook = null;
+      this.openMenu();
+    };
   }
 
   private openMenu(): void {
@@ -133,6 +177,43 @@ export class MainGameScene implements GameScene {
             this.audio.uiSelect();
             this.freeSurf = false;
             this.beginRun();
+          },
+        },
+        {
+          id: 'rider',
+          label: 'Surfer',
+          value: () => {
+            const r = this.availableRiders()[this.riderIndex]!;
+            return `${r.name} · ${r.archetype}`;
+          },
+          onAdjust: (d) => {
+            const n = this.availableRiders().length;
+            this.riderIndex = (this.riderIndex + d + n) % n;
+            this.audio.uiMove();
+            this.startRide(true);
+          },
+        },
+        {
+          id: 'board',
+          label: 'Board',
+          value: () => {
+            const b = this.availableBoards()[this.boardIndex]!;
+            return `${b.name} (${this.availableBoards().length}/${listBoards().length})`;
+          },
+          onAdjust: (d) => {
+            const n = this.availableBoards().length;
+            this.boardIndex = (this.boardIndex + d + n) % n;
+            this.audio.uiMove();
+            this.startRide(true);
+          },
+        },
+        { id: 'stats', label: 'Stats', value: () => this.statsLine(), disabled: true },
+        {
+          id: 'book',
+          label: 'Trick Book',
+          onSelect: () => {
+            this.audio.uiSelect();
+            this.openTrickBook();
           },
         },
         {
@@ -340,6 +421,7 @@ export class MainGameScene implements GameScene {
         this.ride?.step(dt);
         this.menu?.update(inp, dt);
         this.careerMenu?.update(inp, dt);
+        this.trickBook?.update(inp, dt);
         break;
       case 'ride': {
         const pausePressed = inp.pause && !this.prevPause;
@@ -389,6 +471,7 @@ export class MainGameScene implements GameScene {
     this.menu?.dispose();
     this.pause?.dispose();
     this.results?.dispose();
+    this.trickBook?.dispose();
     this.boot?.dispose();
     this.input.detach(window);
   }

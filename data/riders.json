@@ -1,0 +1,372 @@
+{
+  "$comment": "Original roster (design doc \u00a78.1 archetypes). Stats are percentages: base, and the max reachable through career boosts.",
+  "riders": [
+    {
+      "id": "kai",
+      "name": "Kai Moana",
+      "archetype": "All-rounder",
+      "home": "slab",
+      "bio": "Grew up on the reef. Reads sections like a book.",
+      "stats": {
+        "spin": [
+          45,
+          75
+        ],
+        "speed": [
+          55,
+          90
+        ],
+        "air": [
+          45,
+          75
+        ],
+        "balance": [
+          55,
+          90
+        ]
+      },
+      "look": {
+        "suit": "#1d2b3a",
+        "accent": "#3ef0a0",
+        "skin": "#c98a5a",
+        "hair": "#2a1a10",
+        "board": "#f4f0e6",
+        "boardAccent": "#ff7a3d"
+      },
+      "specials": [
+        "shoveItOllie",
+        "hangTen",
+        "alleyOop",
+        "superman",
+        "tubeSpit"
+      ]
+    },
+    {
+      "id": "ruby",
+      "name": "Ruby Tanaka",
+      "archetype": "Balance specialist",
+      "home": "reefpass",
+      "bio": "Deeper in the barrel than anyone. Comes out dry.",
+      "stats": {
+        "spin": [
+          35,
+          70
+        ],
+        "speed": [
+          45,
+          80
+        ],
+        "air": [
+          35,
+          70
+        ],
+        "balance": [
+          75,
+          100
+        ]
+      },
+      "look": {
+        "suit": "#2b1d3a",
+        "accent": "#ff6ad5",
+        "skin": "#e0b48c",
+        "hair": "#111111",
+        "board": "#fff5f8",
+        "boardAccent": "#ff6ad5"
+      },
+      "specials": [
+        "darkSlide",
+        "cruzer",
+        "coffin",
+        "caveman",
+        "lawnDart"
+      ]
+    },
+    {
+      "id": "dex",
+      "name": "Dex Oyelaran",
+      "archetype": "Speed veteran",
+      "home": "pointbreak",
+      "bio": "Twenty years of points. Never bogs.",
+      "stats": {
+        "spin": [
+          35,
+          70
+        ],
+        "speed": [
+          70,
+          98
+        ],
+        "air": [
+          40,
+          75
+        ],
+        "balance": [
+          60,
+          90
+        ]
+      },
+      "look": {
+        "suit": "#101820",
+        "accent": "#ffd23f",
+        "skin": "#5a3a2a",
+        "hair": "#0a0a0a",
+        "board": "#f8f3d8",
+        "boardAccent": "#ffd23f"
+      },
+      "specials": [
+        "cheatersFive",
+        "hangTen",
+        "helicopter",
+        "indian",
+        "tubeSpit"
+      ]
+    },
+    {
+      "id": "lena",
+      "name": "Lena Voss",
+      "archetype": "Aerialist",
+      "home": "sandbar",
+      "bio": "If it has a lip, she is above it.",
+      "stats": {
+        "spin": [
+          50,
+          80
+        ],
+        "speed": [
+          50,
+          85
+        ],
+        "air": [
+          70,
+          100
+        ],
+        "balance": [
+          40,
+          75
+        ]
+      },
+      "look": {
+        "suit": "#0d3b4a",
+        "accent": "#7bdcff",
+        "skin": "#f0c8a0",
+        "hair": "#c9a25a",
+        "board": "#eaf6ff",
+        "boardAccent": "#7bdcff"
+      },
+      "specials": [
+        "rodeoClown",
+        "frontFlip",
+        "backFlip",
+        "airWalk",
+        "crossAir",
+        "jcAir"
+      ]
+    },
+    {
+      "id": "mateo",
+      "name": "Mateo Reyes",
+      "archetype": "Progressive",
+      "home": "sandbar",
+      "bio": "Every trick in the book, and a few that aren't yet.",
+      "stats": {
+        "spin": [
+          55,
+          85
+        ],
+        "speed": [
+          55,
+          85
+        ],
+        "air": [
+          55,
+          85
+        ],
+        "balance": [
+          55,
+          85
+        ]
+      },
+      "look": {
+        "suit": "#1a1a1a",
+        "accent": "#ff7a3d",
+        "skin": "#c09068",
+        "hair": "#2a1a10",
+        "board": "#f4f0e6",
+        "boardAccent": "#2fc4c8"
+      },
+      "specials": [
+        "shoveItOllie",
+        "darkSlide",
+        "crossAir",
+        "rightFlip",
+        "leftFlip",
+        "nacnac",
+        "monkeyMan"
+      ]
+    },
+    {
+      "id": "ngozi",
+      "name": "Ngozi Adeyemi",
+      "archetype": "Power surfer",
+      "home": "outer",
+      "bio": "Big waves, bigger turns.",
+      "stats": {
+        "spin": [
+          40,
+          75
+        ],
+        "speed": [
+          60,
+          95
+        ],
+        "air": [
+          50,
+          80
+        ],
+        "balance": [
+          55,
+          90
+        ]
+      },
+      "look": {
+        "suit": "#2a0f0f",
+        "accent": "#ff4d4d",
+        "skin": "#4a2e20",
+        "hair": "#0a0a0a",
+        "board": "#f2e9d8",
+        "boardAccent": "#ff4d4d"
+      },
+      "specials": [
+        "cruzer",
+        "cheatersFive",
+        "tweakerAir",
+        "helicopter",
+        "caveman"
+      ]
+    },
+    {
+      "id": "sol",
+      "name": "Sol Ferreira",
+      "archetype": "Tube specialist",
+      "home": "reefpass",
+      "bio": "Stalls on purpose. Waits for the roof.",
+      "stats": {
+        "spin": [
+          30,
+          65
+        ],
+        "speed": [
+          50,
+          85
+        ],
+        "air": [
+          40,
+          75
+        ],
+        "balance": [
+          75,
+          100
+        ]
+      },
+      "look": {
+        "suit": "#0f2a1f",
+        "accent": "#a4ff5a",
+        "skin": "#b8804e",
+        "hair": "#3a2a1a",
+        "board": "#f7fbe8",
+        "boardAccent": "#a4ff5a"
+      },
+      "specials": [
+        "coffin",
+        "caveman",
+        "lawnDart",
+        "tubeSpit",
+        "hangTen"
+      ]
+    },
+    {
+      "id": "indy",
+      "name": "Indy Marsh",
+      "archetype": "Spin specialist",
+      "home": "cove",
+      "bio": "Counts rotations in her sleep.",
+      "stats": {
+        "spin": [
+          70,
+          100
+        ],
+        "speed": [
+          45,
+          80
+        ],
+        "air": [
+          55,
+          85
+        ],
+        "balance": [
+          40,
+          75
+        ]
+      },
+      "look": {
+        "suit": "#1c1c30",
+        "accent": "#b36bff",
+        "skin": "#e8c4a0",
+        "hair": "#6a2a8a",
+        "board": "#f3ecff",
+        "boardAccent": "#b36bff"
+      },
+      "specials": [
+        "helicopter",
+        "rightFlip",
+        "leftFlip",
+        "indian",
+        "jcAir",
+        "airWalk"
+      ]
+    },
+    {
+      "id": "foam",
+      "name": "Captain Foam",
+      "archetype": "Secret",
+      "home": "outer",
+      "bio": "Nobody knows where the foam came from.",
+      "secret": true,
+      "unlock": "career",
+      "stats": {
+        "spin": [
+          75,
+          90
+        ],
+        "speed": [
+          75,
+          90
+        ],
+        "air": [
+          75,
+          90
+        ],
+        "balance": [
+          75,
+          90
+        ]
+      },
+      "look": {
+        "suit": "#f4fbff",
+        "accent": "#3ec6c2",
+        "skin": "#f4fbff",
+        "hair": "#f4fbff",
+        "board": "#3ec6c2",
+        "boardAccent": "#f4fbff"
+      },
+      "specials": [
+        "superman",
+        "rodeoClown",
+        "coffin",
+        "darkSlide",
+        "hangTen",
+        "helicopter"
+      ]
+    }
+  ]
+}
