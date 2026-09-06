@@ -57,7 +57,8 @@
     "overTheBackSin": 0.7,
     "stallSpeedFraction": 0.42,
     "superStallSpeedFraction": 0.22,
-    "stallRelax": 2.4
+    "stallRelax": 2.4,
+    "respawnAheadSeconds": 3.4
   },
   "air": {
     "gravity": 9.81,

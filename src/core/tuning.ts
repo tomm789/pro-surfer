@@ -49,6 +49,7 @@ export const TuningSchema = z.object({
     proneStandV: z.number().min(0).max(1),
     wipeoutTumbleSeconds: z.number().positive(),
     respawnAheadU: z.number(),
+    respawnAheadSeconds: z.number().positive(),
     respawnV: z.number().min(0).max(1),
     boardLength: z.number().positive(),
     headingLevelRate: z.number().nonnegative(),

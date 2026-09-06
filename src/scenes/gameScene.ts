@@ -66,7 +66,7 @@ export class MainGameScene implements GameScene {
       this.boot?.dispose();
       this.boot = null;
       this.freeSurf = ctx.params.get('free') === '1';
-      this.beginRun();
+      this.beginRun(ctx.params.get('level'));
     }
   }
 

@@ -106,7 +106,7 @@ export class RiderSim {
   ) {
     this.stats = stats;
     this.rng = rng ?? new Rng(0x5eed);
-    this.u = start?.u ?? wave.curlU + tuning.rider.respawnAheadU;
+    this.u = start?.u ?? wave.curlU + wave.params.breakSpeed * tuning.rider.respawnAheadSeconds;
     this.v = start?.v ?? tuning.rider.respawnV;
     if (start?.state) this.state = start.state;
     if (this.state === 'face') this.speed = tuning.rider.trimSpeed * 0.8;
@@ -573,7 +573,7 @@ export class RiderSim {
     this.v = damp(this.v, 0.12, 4, dt);
     if (this.stateTime >= R.wipeoutTumbleSeconds) {
       // catch the next wave: reappear prone ahead of the curl
-      this.u = this.wave.curlU + R.respawnAheadU;
+      this.u = this.wave.curlU + this.wave.params.breakSpeed * R.respawnAheadSeconds;
       this.v = R.respawnV;
       this.heading = 0;
       this.fakie = false;
