@@ -112,6 +112,7 @@ export const TuningSchema = z.object({
       faceSpecial: z.number(),
       grab: z.number(),
       flip: z.number(),
+      plainSpin: z.number(),
       airSpecial: pair,
       tubePerSecond: z.number(),
       tubeSquaredPerSecond: z.number(),
@@ -169,6 +170,7 @@ export const TuningSchema = z.object({
   }),
   photo: z.object({ beeps: z.number().int(), beepIntervalSeconds: z.number(), shotsPerRun: z.number().int() }),
   icons: z.object({ stackSize: z.number().int(), dropIntervalSeconds: z.number() }),
+  replay: z.object({ leadSeconds: z.number(), tailSeconds: z.number(), maxSeconds: z.number() }),
 });
 
 export type Tuning = z.infer<typeof TuningSchema>;

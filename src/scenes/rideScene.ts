@@ -31,6 +31,8 @@ import { getRider, getBoard, effectiveStats, listRiders, listBoards } from '@/wo
 import { TRICKS } from '@/tricks/catalogue';
 const TRICKS_ALL = TRICKS.all;
 import { Landmarks } from '@/render/landmarks';
+import { HighlightTracker, InputRecorder, type Recording, type ReplayPlayer } from '@/core/replay';
+import { ReplayDirector } from '@/render/replayDirector';
 
 /**
  * Playable ride: wave + rider + tricks + scoring + HUD.
@@ -90,8 +92,9 @@ export class RideScene implements GameScene {
   audio: AudioManager | null = null;
   /** Attract mode: runs behind the menus with an automatic rider and no HUD. */
   attract = false;
-  /** Called once when the run ends. */
+  /** Called once when the run ends (after a short sim-time beat so the final bank is readable). */
   onEnd: (() => void) | null = null;
+  private endCountdown: number | null = null;
   private externalInput: Readonly<RiderInput> | null = null;
   private attractTimer = 0;
   /** Viewport in normalised screen coords (x, y, w, h); null = full canvas. */
@@ -100,10 +103,43 @@ export class RideScene implements GameScene {
   playerLabel = '';
   /** Controls hint override (multiplayer: each player sees their own keys or pad). */
   controlsHint: string | null = null;
+  /** Set before init to play back a recording instead of taking live input. */
+  replay: ReplayPlayer | null = null;
+  replayPoints = 0;
+  private recorder = new InputRecorder();
+  private highlight = new HighlightTracker();
+  private frame = 0;
+  private director: ReplayDirector | null = null;
+  private paramsString = '';
+  private seed = 1;
+  private replayChrome: HTMLElement[] = [];
+
+  /** Hide/show this ride's HUD (the game shell hides a finished ride's HUD behind a replay). */
+  setHudVisible(visible: boolean): void {
+    this.hud.root.style.display = visible && !this.attract ? '' : 'none';
+  }
+
+  /** Sim frames stepped so far. */
+  get frameIndex(): number {
+    return this.frame;
+  }
+
+  /** Replay slow-motion factor (1 outside replays). */
+  get replaySpeed(): number {
+    return this.director?.speed ?? 1;
+  }
+
+  /** Everything needed to re-simulate this ride. */
+  recording(): Recording {
+    return { hz: TUNING.sim.hz, seed: this.seed, params: this.paramsString, keys: this.recorder.keys, frames: this.recorder.frames, highlight: this.highlight.best };
+  }
 
   init(ctx: SceneContext): void {
     this.renderer = ctx.renderer;
     this.headless = ctx.headless;
+    this.paramsString = ctx.params.toString();
+    this.seed = ctx.seed;
+    if (this.replay) this.director = new ReplayDirector(ctx.seed + 23);
     const levelId = ctx.params.get('level');
     this.level = levelId ? getLevel(levelId) : null;
     if (ctx.params.get('iconChallenge') === '1') {
@@ -222,6 +258,23 @@ export class RideScene implements GameScene {
     this.attract = this.attract || ctx.params.get('attract') === '1';
     this.hud = new Hud(ctx.uiRoot);
     if (this.attract) this.hud.root.style.display = 'none';
+    if (this.replay) {
+      // TV replay: letterbox bars and a recording badge; the HUD sits inside the bars
+      this.hud.root.style.top = '9%';
+      this.hud.root.style.bottom = '8%';
+      for (const side of ['top', 'bottom'] as const) {
+        const bar = document.createElement('div');
+        bar.style.cssText = `position:absolute;left:0;right:0;${side}:0;height:7%;background:#000;pointer-events:none;z-index:5`;
+        ctx.uiRoot.appendChild(bar);
+        this.replayChrome.push(bar);
+      }
+      const badge = document.createElement('div');
+      badge.style.cssText =
+        'position:absolute;left:50%;top:8.5%;transform:translateX(-50%);font:900 15px/1 "Trebuchet MS",sans-serif;letter-spacing:5px;color:#fff;text-shadow:0 2px 4px rgba(0,0,0,.7);pointer-events:none;z-index:5';
+      badge.innerHTML = '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ff3b3b;margin-right:10px;vertical-align:1px"></span>REPLAY';
+      ctx.uiRoot.appendChild(badge);
+      this.replayChrome.push(badge);
+    }
     if (ctx.params.get('hudScale')) this.hud.root.style.zoom = ctx.params.get('hudScale')!;
     this.playerLabel = ctx.params.get('player') ?? '';
     this.hudState = {
@@ -300,6 +353,7 @@ export class RideScene implements GameScene {
       this.rider.wipeout('exit');
     });
     this.run.events.on('chainBanked', (b) => {
+      this.highlight.bank(this.frame, b.total, Math.round(TUNING.replay.leadSeconds * TUNING.sim.hz), Math.round(TUNING.replay.tailSeconds * TUNING.sim.hz));
       this.hud.showBank(b.total, b.cashedIn);
       this.log(`bank ${b.total} x${b.multiplier} ${b.cashedIn ? 'cash' : 'auto'} [${b.entries.map((x) => x.id).join('+')}]`);
       if (!this.headless && b.cashedIn) this.inputManager.rumble(0.6, 0.3, 180);
@@ -374,7 +428,7 @@ export class RideScene implements GameScene {
       } else this.hud.flash(`TIME · ${e.score.toLocaleString('en-US')}`, 'info', 6);
       this.log(`runEnd ${e.score}`);
       this.audio?.bank(e.score);
-      if (this.onEnd) setTimeout(() => this.onEnd?.(), 1800);
+      this.endCountdown = 1.8;
     });
     // sounds
     const a = () => this.audio;
@@ -447,23 +501,46 @@ export class RideScene implements GameScene {
       this.headlessInput = { ...cloneInput(NEUTRAL_INPUT), ...next.input };
     }
     let input = this.currentInput();
-    if (this.auto && this.rider.state === 'prone' && this.rider.stateTime > 0.8) input = { ...input, stand: true };
-    if (this.assistBalance && this.rider.state === 'tube') {
-      const b = this.rider.tube.balance;
-      const frame = Math.floor(this.time * 60);
-      input = { ...input, stickX: Math.abs(b) > 0.08 && frame % 6 < 3 ? Math.sign(b) : 0 };
+    let bank: boolean;
+    if (this.replay) {
+      // replays re-simulate the recorded inputs; auto/assist were already baked into them
+      const k = this.replay.inputAt(this.frame);
+      input = k.input;
+      bank = k.cashIn;
+    } else {
+      if (this.auto && this.rider.state === 'prone' && this.rider.stateTime > 0.8) input = { ...input, stand: true };
+      if (this.assistBalance && this.rider.state === 'tube') {
+        const b = this.rider.tube.balance;
+        const frame = Math.floor(this.time * 60);
+        input = { ...input, stickX: Math.abs(b) > 0.08 && frame % 6 < 3 ? Math.sign(b) : 0 };
+      }
+      bank = (input.cashIn && !this.prevCashIn) || this.cashInEdge;
+      this.prevCashIn = input.cashIn;
+      this.recorder.record(input, bank);
     }
-    const cashIn = input.cashIn && !this.prevCashIn;
-    this.prevCashIn = input.cashIn;
-    if (input.cameraToggle && !this.prevCameraToggle) this.cam.mode = this.cam.mode === 'chase' ? 'wide' : 'chase';
-    this.prevCameraToggle = input.cameraToggle;
+    this.cashInEdge = false;
+    if (this.director) {
+      this.director.update(dt, this.rider.state, this.rider.airTime);
+      if (this.director.cut) this.cam.cut(this.director.mode);
+    } else {
+      if (input.cameraToggle && !this.prevCameraToggle) this.cam.mode = this.cam.mode === 'chase' ? 'wide' : 'chase';
+      this.prevCameraToggle = input.cameraToggle;
+    }
     if (!this.run.ended) {
       this.wave.step(dt, this.rider.state === 'wipeout' ? null : this.rider.u);
       this.rider.step(dt, input);
       this.tricks.step(dt, input);
     }
-    this.run.step(dt, cashIn || this.cashInEdge);
-    this.cashInEdge = false;
+    this.run.step(dt, bank);
+    this.highlight.step(this.frame, this.run.chain.open);
+    this.frame++;
+    if (this.endCountdown !== null) {
+      this.endCountdown -= dt;
+      if (this.endCountdown <= 0) {
+        this.endCountdown = null;
+        this.onEnd?.();
+      }
+    }
     if (!this.run.ended) {
       const r = this.rider;
       this.icons?.step(dt, this.run.meter.isYellow);
@@ -582,6 +659,12 @@ export class RideScene implements GameScene {
     s.balance = r.state === 'tube' ? r.tube.balance : null;
     s.tubeDepth = r.tube.depth;
     s.tubeState = r.state;
+    if (this.replay) {
+      s.objective = ['REPLAY', `best chain · ${this.replayPoints.toLocaleString('en-US')}`];
+      s.hint = 'A / Space: skip';
+      s.debug = '';
+      return;
+    }
     s.hint = this.controlsHint
       ? this.controlsHint
       : this.inputManager.gamepadName
@@ -637,6 +720,8 @@ export class RideScene implements GameScene {
     this.env.dispose();
     this.inputManager.detach(window);
     this.hud.dispose();
+    for (const el of this.replayChrome) el.remove();
+    this.replayChrome = [];
   }
 
   debugState(): Record<string, unknown> {

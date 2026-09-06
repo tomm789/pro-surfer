@@ -32,6 +32,8 @@ export class SplitScene implements GameScene {
   onEnd: ((r: SplitResult) => void) | null = null;
   private inputs: [Readonly<RiderInput>, Readonly<RiderInput>] = [NEUTRAL_INPUT, NEUTRAL_INPUT];
   private banner: HTMLDivElement;
+  private result: SplitResult | null = null;
+  private endCountdown: number | null = null;
 
   constructor(
     private mode: SplitMode,
@@ -95,6 +97,13 @@ export class SplitScene implements GameScene {
 
   step(dt: number): void {
     this.time += dt;
+    if (this.endCountdown !== null) {
+      this.endCountdown -= dt;
+      if (this.endCountdown <= 0) {
+        this.endCountdown = null;
+        if (this.result) this.onEnd?.(this.result);
+      }
+    }
     for (let i = 0; i < 2; i++) {
       const r = this.rides[i]!;
       r.setInput(this.inputs[i]!);
@@ -119,8 +128,8 @@ export class SplitScene implements GameScene {
     this.banner.textContent = winner ? `PLAYER ${winner} WINS` : 'DRAW';
     this.banner.style.opacity = '1';
     this.audio?.bank(80000);
-    const result: SplitResult = { winner, scores: [this.rides[0]!.run.score, this.rides[1]!.run.score], shares: [this.share, 1 - this.share] };
-    setTimeout(() => this.onEnd?.(result), 2500);
+    this.result = { winner, scores: [this.rides[0]!.run.score, this.rides[1]!.run.score], shares: [this.share, 1 - this.share] };
+    this.endCountdown = 2.5;
   }
 
   render(): void {

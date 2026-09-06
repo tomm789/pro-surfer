@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Tuning } from '@/core/tuning';
 import type { RiderPose, RiderState } from '@/rider/rider';
 
-export type CameraMode = 'chase' | 'wide' | 'tube' | 'object' | 'close' | 'shore';
+export type CameraMode = 'chase' | 'wide' | 'tube' | 'object' | 'close' | 'shore' | 'beach';
 
 /**
  * Third-person camera that lives shoreward of the rider, looks down the line, and frames the curl.
@@ -19,6 +19,15 @@ export class ChaseCamera {
   private tmp = new THREE.Vector3();
   /** When set, the camera keeps its position but looks at this point (object cam). */
   objectTarget: THREE.Vector3 | null = null;
+  /** Fixed tripod position for the beach camera; set on the first update after a cut. */
+  private anchor: THREE.Vector3 | null = null;
+
+  /** Hard cut to a camera mode (replays): no glide from the previous shot. */
+  cut(mode: CameraMode): void {
+    this.mode = mode;
+    this.anchor = null;
+    this.initialised = false;
+  }
 
   constructor(
     private tuning: Tuning,
@@ -54,6 +63,13 @@ export class ChaseCamera {
       height *= 1.15;
     }
     const p = pose.pos;
+    if (this.mode === 'beach') {
+      // a photographer standing shoreward and down the line; the rider surfs toward and past the lens
+      if (!this.anchor) this.anchor = new THREE.Vector3(p.x + dir * 26, Math.max(p.y, 0) + 5.5, p.z - 34);
+      this.desiredPos.copy(this.anchor);
+      this.desiredLook.set(p.x, p.y + 0.8, p.z);
+      return;
+    }
     if (this.mode === 'shore') {
       // debug: look from the rider toward the beach
       this.desiredPos.set(p.x, p.y + 6, p.z + 14);

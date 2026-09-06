@@ -201,7 +201,10 @@ export class ResultsScreen {
   readonly root: HTMLDivElement;
   private nav = new MenuNav();
   onDone: (() => void) | null = null;
+  /** Secondary action (slide / Y): e.g. watch the replay. */
+  onAlt: (() => void) | null = null;
   private timer = 0;
+  private prevAlt = false;
 
   constructor(parent: HTMLElement, title: string, big: string, rows: ResultRow[], foot: string) {
     ensureScreenCss();
@@ -232,12 +235,17 @@ export class ResultsScreen {
 
   prime(input: Readonly<RiderInput>): void {
     this.nav.prime(input);
+    this.prevAlt = input.slide;
+    this.timer = 0;
   }
 
   update(input: Readonly<RiderInput>, dt: number): void {
     this.timer += dt;
     const n = this.nav.read(input, dt);
-    if (this.timer > 0.6 && (n.select || n.back)) this.onDone?.();
+    const alt = input.slide && !this.prevAlt;
+    this.prevAlt = input.slide;
+    if (this.timer > 0.6 && alt && this.onAlt) this.onAlt();
+    else if (this.timer > 0.6 && (n.select || n.back)) this.onDone?.();
   }
 
   dispose(): void {

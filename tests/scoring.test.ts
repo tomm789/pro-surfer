@@ -156,8 +156,13 @@ describe('chain and scoring', () => {
 
   it('rotation-only airs score through the synthetic spin trick', () => {
     const r = rig();
-    r.trickEvents.emit('trickLand', { trick: spinTrick(2), section: 'air', aheadOfCurl: 3, rotation: Math.PI * 2, landing: 'perfect', atLip: false });
+    r.trickEvents.emit('trickLand', { trick: spinTrick(2, TUNING.scoring.base.plainSpin), section: 'air', aheadOfCurl: 3, rotation: Math.PI * 2, landing: 'perfect', atLip: false });
     expect(r.run.chain.entries[0]!.name).toBe('360');
+    // base × rotation (1 + 0.35 × 2) × perfect × proximity: a 360 is worth real points, not zero
+    expect(r.run.chain.total).toBeGreaterThan(TUNING.scoring.base.plainSpin * 1.5);
+    const r2 = rig();
+    r2.trickEvents.emit('trickLand', { trick: spinTrick(4, TUNING.scoring.base.plainSpin), section: 'air', aheadOfCurl: 3, rotation: Math.PI * 4, landing: 'perfect', atLip: false });
+    expect(r2.run.chain.total).toBeGreaterThan(r.run.chain.total);
   });
 });
 

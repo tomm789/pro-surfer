@@ -120,6 +120,7 @@
       "faceSpecial": 1500,
       "grab": 300,
       "flip": 400,
+      "plainSpin": 200,
       "airSpecial": [
         2000,
         3000
@@ -197,5 +198,10 @@
   "icons": {
     "stackSize": 6,
     "dropIntervalSeconds": 5.0
+  },
+  "replay": {
+    "leadSeconds": 3.0,
+    "tailSeconds": 2.0,
+    "maxSeconds": 40
   }
 }

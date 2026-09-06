@@ -5,7 +5,8 @@ import { NEUTRAL_INPUT, type RiderInput } from '@/rider/input';
 import { TUNING } from '@/core/tuning';
 import { listBeaches } from '@/world/beaches';
 import { AudioManager } from '@/audio/audio';
-import { BootScreen, MenuScreen, ResultsScreen, type MenuItem, type ResultRow } from '@/ui/screens';
+import { BootScreen, MenuNav, MenuScreen, ResultsScreen, type MenuItem, type ResultRow } from '@/ui/screens';
+import { ReplayPlayer, type Recording } from '@/core/replay';
 import { RideScene } from './rideScene';
 import { SplitScene, type SplitMode } from './splitScene';
 import { KEYMAP_P1, KEYMAP_P2, KEYMAP_SOLO, keymapHint } from '@/input/keymaps';
@@ -17,7 +18,7 @@ import { listRiders, listBoards, getRider, getBoard, effectiveStats, statBar } f
 import { TrickBookScreen } from '@/ui/trickBook';
 import { TUNING as T } from '@/core/tuning';
 
-type Flow = 'boot' | 'menu' | 'ride' | 'paused' | 'results' | 'split' | 'interstitial';
+type Flow = 'boot' | 'menu' | 'ride' | 'paused' | 'results' | 'split' | 'interstitial' | 'replay';
 
 /**
  * The game shell: boot screen (audio + gamepad unlock) → main menu → ride → results.
@@ -82,7 +83,7 @@ export class MainGameScene implements GameScene {
       this.boot?.dispose();
       this.boot = null;
       this.freeSurf = ctx.params.get('free') === '1';
-      this.beginRun(ctx.params.get('level'));
+      this.beginRun(ctx.params.get('level'), ctx.params.has('seconds') ? Number(ctx.params.get('seconds')) : null);
     } else if (flow === 'push' || flow === 'head') {
       this.boot?.dispose();
       this.boot = null;
@@ -431,6 +432,62 @@ export class MainGameScene implements GameScene {
   private runSeconds: number | null = null;
   private runLabel = '';
   private iconChallenge = false;
+  private replayRide: RideScene | null = null;
+  private replaySeek = 0;
+  private replayEnd = 0;
+  private replayAccum = 0;
+  private replayNav = new MenuNav();
+
+  /** Re-simulate the recorded run from just before its best chain, TV-directed. */
+  private playReplay(rec: Recording): void {
+    const hl = rec.highlight;
+    if (!hl) return;
+    const params = new URLSearchParams(rec.params);
+    params.set('replay', '1');
+    params.delete('attract');
+    const ride = new RideScene();
+    ride.replay = new ReplayPlayer(rec);
+    ride.replayPoints = hl.points;
+    ride.init({ ...this.ctx, params, seed: rec.seed });
+    this.replayRide = ride;
+    this.replaySeek = hl.startFrame;
+    this.replayEnd = Math.min(hl.endFrame, hl.startFrame + Math.round(TUNING.replay.maxSeconds * TUNING.sim.hz));
+    this.replayAccum = 0;
+    this.replayNav.prime(this.lastInput);
+    if (this.results) this.results.root.style.display = 'none';
+    this.ride?.setHudVisible(false);
+    this.audio.uiSelect();
+    this.flow = 'replay';
+  }
+
+  private stepReplay(inp: Readonly<RiderInput>, dt: number): void {
+    const r = this.replayRide;
+    if (!r) return;
+    if (r.frameIndex < this.replaySeek) {
+      // rewind: silent fast-forward to the start of the highlight
+      for (let i = 0; i < 400 && r.frameIndex < this.replaySeek; i++) r.step(dt);
+      if (r.frameIndex >= this.replaySeek) r.audio = this.audio;
+    } else {
+      this.replayAccum += r.replaySpeed;
+      while (this.replayAccum >= 1) {
+        r.step(dt);
+        this.replayAccum -= 1;
+      }
+    }
+    const n = this.replayNav.read(inp, dt);
+    if (r.frameIndex >= this.replayEnd || n.select || n.back) this.endReplay();
+  }
+
+  private endReplay(): void {
+    this.replayRide?.dispose();
+    this.replayRide = null;
+    this.ride?.setHudVisible(true);
+    if (this.results) {
+      this.results.root.style.display = '';
+      this.results.prime(this.lastInput);
+    }
+    this.flow = 'results';
+  }
 
   private beginRun(levelId: string | null = null, seconds: number | null = null, label = ''): void {
     this.menu?.dispose();
@@ -537,6 +594,7 @@ export class MainGameScene implements GameScene {
       for (const rw of out.newRewards) goalRows.push({ label: 'Reward', value: rw.replace(':', ' · '), ok: true });
       title = tracker.requiredDone ? 'LEVEL CLEARED' : 'HEAT OVER';
     }
+    const rec = this.ride.recording();
     this.results = new ResultsScreen(
       this.ctx.uiRoot,
       title,
@@ -552,9 +610,11 @@ export class MainGameScene implements GameScene {
         { label: 'Longest ride', value: `${run.longestRide.toFixed(0)} s` },
         { label: 'Wipeouts', value: String(run.wipeouts), ok: run.wipeouts === 0 },
       ],
-      'A / Space: back to the boat',
+      rec.highlight ? 'A / Space: back to the boat · L / Y: replay of the best chain' : 'A / Space: back to the boat',
     );
     this.results.prime(this.lastInput);
+    if (rec.highlight) this.results.onAlt = () => this.playReplay(rec);
+    if (rec.highlight && this.ctx.params.get('autoreplay') === '1') this.playReplay(rec);
     this.results.onDone = () => {
       this.results?.dispose();
       this.results = null;
@@ -668,6 +728,9 @@ export class MainGameScene implements GameScene {
         this.ride?.step(dt);
         this.results?.update(inp, dt);
         break;
+      case 'replay':
+        this.stepReplay(inp, dt);
+        break;
       case 'split': {
         const pausePressed = (inp.pause || this.lastInput2.pause) && !this.prevPause;
         if (pausePressed) this.openPause();
@@ -697,15 +760,18 @@ export class MainGameScene implements GameScene {
     this.prevFull = full;
     if (this.audio.ready && this.flow !== 'boot') this.audio.music?.play();
     void alpha;
-    if (this.split) this.split.render();
+    if (this.replayRide) this.replayRide.render();
+    else if (this.split) this.split.render();
     else this.ride?.render();
   }
 
   cameras(): THREE.PerspectiveCamera[] {
+    if (this.replayRide) return this.replayRide.cameras();
     return this.split ? [] : (this.ride?.cameras() ?? []);
   }
 
   dispose(): void {
+    this.replayRide?.dispose();
     this.ride?.dispose();
     this.menu?.dispose();
     this.pause?.dispose();
@@ -718,6 +784,10 @@ export class MainGameScene implements GameScene {
   }
 
   debugState(): Record<string, unknown> {
-    return { flow: this.flow, ride: this.ride?.debugState() };
+    return {
+      flow: this.flow,
+      ride: this.ride?.debugState(),
+      replay: this.replayRide ? { frame: this.replayRide.frameIndex, seek: this.replaySeek, end: this.replayEnd, ...this.replayRide.debugState() } : null,
+    };
   }
 }

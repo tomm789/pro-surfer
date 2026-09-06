@@ -198,7 +198,7 @@ export class TrickSystem {
     }
     if (!this.pendingAir.length && spins180 > 0) {
       // a plain rotation with no grab is still a trick: synthesise it from the catalogue-free "spin" entry
-      this.events.emit('trickLand', { trick: spinTrick(spins180), section: 'air', aheadOfCurl: this.rider.aheadOfCurl, rotation, landing: rating, atLip: false });
+      this.events.emit('trickLand', { trick: spinTrick(spins180, this.tuning.scoring.base.plainSpin), section: 'air', aheadOfCurl: this.rider.aheadOfCurl, rotation, landing: rating, atLip: false });
     }
     this.pendingAir = [];
   }
@@ -255,14 +255,15 @@ export class TrickSystem {
 }
 
 /** Synthetic rotation trick (180/360/540…). Not in the data file because its value is computed. */
-export function spinTrick(spins180: number): Trick {
+/** A rotation-only air: base from tuning (scoring.base.plainSpin), the rotation factor does the rest. */
+export function spinTrick(spins180: number, base = 0): Trick {
   const deg = spins180 * 180;
   return {
     id: `spin${deg}`,
     name: `${deg}`,
     section: 'air',
     input: { kind: 'dir', button: 'carve', direction: 'up' },
-    base: 0,
+    base,
     meter: 0.08,
     duration: 0,
     special: false,
