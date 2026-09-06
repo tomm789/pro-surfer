@@ -25,6 +25,9 @@ export class WaveMesh {
   private rows: ProfileRow[] = allocRows();
   private opts: WaveMeshOptions;
   private du: number;
+  /** World-z extent of the strip after the last update (for blending the ambient ocean). */
+  zMin = 0;
+  zMax = 0;
 
   constructor(uniforms: WaterUniforms, opts: Partial<WaveMeshOptions> = {}) {
     this.opts = { columns: 176, behind: 42, ahead: 92, skirt: 40, ...opts };
@@ -82,6 +85,8 @@ export class WaveMesh {
     const dir = wave.params.direction;
     const rows = this.rows;
     let vi = 0;
+    let zMin = Infinity;
+    let zMax = -Infinity;
     for (let c = 0; c < columns; c++) {
       const u = u0 + c * du;
       const prof = wave.profileAt(u);
@@ -89,9 +94,12 @@ export class WaveMesh {
       for (let r = 0; r < ROW_COUNT; r++) {
         const row = rows[r]!;
         const p = vi * 3;
+        const z = -row.d;
+        if (z < zMin) zMin = z;
+        if (z > zMax) zMax = z;
         this.positions[p] = dir * u;
         this.positions[p + 1] = row.y;
-        this.positions[p + 2] = -row.d;
+        this.positions[p + 2] = z;
         this.foam[vi] = row.foam;
         this.height[vi] = row.height01;
         this.face[vi] = row.faceMask;
@@ -100,6 +108,8 @@ export class WaveMesh {
         vi++;
       }
     }
+    this.zMin = zMin;
+    this.zMax = zMax;
     const g = this.geometry;
     g.attributes.position!.needsUpdate = true;
     g.attributes.aFoam!.needsUpdate = true;

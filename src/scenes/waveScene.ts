@@ -56,6 +56,8 @@ export class WaveScene implements GameScene {
   render(): void {
     this.uniforms.uTime.value = this.time;
     this.waveMesh.update(this.wave);
+    this.uniforms.uAmpMask0.value = (this.waveMesh.zMin + this.waveMesh.zMax) / 2;
+    this.uniforms.uAmpMask1.value = (this.waveMesh.zMax - this.waveMesh.zMin) / 2 - 8;
     const dir = this.wave.params.direction;
     const pos = new THREE.Vector3();
     const p = { x: 0, y: 0, z: 0 };

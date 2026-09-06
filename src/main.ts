@@ -1,10 +1,12 @@
 import { App } from '@/app/app';
 import { PlaceholderScene } from '@/scenes/placeholder';
 import { WaveScene } from '@/scenes/waveScene';
+import { RideScene } from '@/scenes/rideScene';
 
 const app = new App({
   placeholder: () => new PlaceholderScene(),
   wave: () => new WaveScene(),
+  ride: () => new RideScene(),
 });
 
 app.start().catch((err) => {

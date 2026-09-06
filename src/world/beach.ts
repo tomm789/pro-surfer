@@ -42,6 +42,6 @@ export function parseBeach(raw: unknown): Beach {
 }
 
 /** Feet (as the original listed wave sizes) → metres of face height, with a mild "video game scale" factor. */
-export function waveFeetToMetres(ft: number, faceScale = 1.15): number {
+export function waveFeetToMetres(ft: number, faceScale = 1.35): number {
   return ft * 0.3048 * faceScale;
 }

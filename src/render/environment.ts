@@ -10,6 +10,7 @@ export class Environment {
   readonly ocean: THREE.Mesh;
   private sky: THREE.Mesh;
   private oceanMat: THREE.ShaderMaterial;
+  private sunDir = new THREE.Vector3();
 
   constructor(beach: Beach, uniforms: WaterUniforms) {
     const preset = SKY_PRESETS[beach.look.sky];
@@ -41,9 +42,12 @@ export class Environment {
     this.group.add(this.ocean);
 
     this.sun = new THREE.DirectionalLight(new THREE.Color(preset.sun), preset.sunIntensity);
-    this.sun.position.copy(uniforms.uSunDir.value).multiplyScalar(120);
+    this.sunDir.copy(uniforms.uSunDir.value).normalize();
+    this.sun.position.copy(this.sunDir).multiplyScalar(120);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.bias = -0.0004;
+    this.sun.shadow.normalBias = 0.06;
     const cam = this.sun.shadow.camera;
     cam.left = -40;
     cam.right = 40;
@@ -61,7 +65,7 @@ export class Environment {
     this.ocean.position.x = Math.round(cameraPos.x / 20) * 20;
     this.ocean.position.z = Math.round(cameraPos.z / 20) * 20;
     this.sun.target.position.copy(focus);
-    this.sun.position.copy(focus).addScaledVector(this.sun.position.clone().sub(this.sun.target.position).normalize(), 120);
+    this.sun.position.copy(focus).addScaledVector(this.sunDir, 120);
   }
 
   dispose(): void {

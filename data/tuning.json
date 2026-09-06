@@ -28,19 +28,37 @@
     "climbDrag": 0.9,
     "stallDecel": 8,
     "superStallDecel": 14,
-    "turnRate": 2.6,
-    "grabTurnRate": 1.8,
-    "carveTurnRate": 3.4,
-    "gravityAlongFace": 6.5,
+    "turnRate": 1.9,
+    "grabTurnRate": 1.4,
+    "carveTurnRate": 2.7,
+    "gravityAlongFace": 9.81,
     "bogSpeed": 3.2,
     "curlCatchMarginU": 1.5,
     "proneSpeed": 2.0,
-    "standWindowV": [0.15, 0.75],
-    "dropSpeedBoost": 4.0
+    "standWindowV": [
+      0.15,
+      0.75
+    ],
+    "dropSpeedBoost": 4.0,
+    "carveAccel": 2.2,
+    "relaxBelowTrim": 0.55,
+    "relaxAboveTrim": 0.9,
+    "shoulderStartU": 22,
+    "shoulderEndU": 60,
+    "shoulderSpeedLoss": 0.5,
+    "pocketSpeedGain": 0.15,
+    "proneLiftRate": 0.1,
+    "proneStandV": 0.35,
+    "wipeoutTumbleSeconds": 2.4,
+    "respawnAheadU": 20,
+    "respawnV": 0.25,
+    "boardLength": 1.9,
+    "headingLevelRate": 2.4,
+    "overTheBackSin": 0.7
   },
   "air": {
     "gravity": 9.81,
-    "launchSpeedScale": 0.55,
+    "launchSpeedScale": 0.25,
     "launchLipBonus": 3.0,
     "loadMaxSeconds": 0.8,
     "loadMinFraction": 0.35,
@@ -49,7 +67,14 @@
     "hangTimeStatScale": 0.35,
     "perfectWindowDeg": 20,
     "sloppyWindowDeg": 45,
-    "landingReprojectV": 0.35
+    "landingReprojectV": 0.35,
+    "launchBase": 2.5,
+    "launchPerPower": 3.5,
+    "launchMinV": 0.8,
+    "launchMinHeading": 0.2,
+    "airTimeoutSeconds": 6,
+    "landSpeedKeepPerfect": 0.92,
+    "landSpeedKeepSloppy": 0.72
   },
   "tube": {
     "entrySpeedMax": 6.0,
@@ -60,7 +85,10 @@
     "balanceInputImpulse": 0.9,
     "balanceFailThreshold": 1.0,
     "quickCutOffsetU": 1.2,
-    "depthZones": [0.33, 0.66],
+    "depthZones": [
+      0.33,
+      0.66
+    ],
     "exitSpeed": 9.0
   },
   "floater": {
@@ -70,20 +98,34 @@
   },
   "scoring": {
     "base": {
-      "faceBasic": [250, 450],
+      "faceBasic": [
+        250,
+        450
+      ],
       "faceSpecial": 1500,
       "grab": 300,
       "flip": 400,
-      "airSpecial": [2000, 3000],
+      "airSpecial": [
+        2000,
+        3000
+      ],
       "tubePerSecond": 150,
       "tubeSquaredPerSecond": 40,
       "tubeTrick": 500,
       "tubeSpecial": 2000,
       "floaterPerSecond": 120,
-      "envSecret": [500, 1000],
+      "envSecret": [
+        500,
+        1000
+      ],
       "exitMove": 300
     },
-    "repeatDecay": [1.0, 0.5, 0.25, 0.1],
+    "repeatDecay": [
+      1.0,
+      0.5,
+      0.25,
+      0.1
+    ],
     "proximityMin": 1.0,
     "proximityMax": 1.5,
     "proximityBoardLengths": 1.0,

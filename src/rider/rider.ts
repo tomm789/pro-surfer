@@ -1,0 +1,486 @@
+/**
+ * RiderSim: the rider state machine and physics, entirely in wave space.
+ *   u along the crest, v up the face (0 trough … 1 lip), speed (m/s), heading ψ (radians from +u toward +v).
+ * Air is integrated in world space and re-projected onto the face on landing.
+ */
+import { clamp, damp, lerp, smoothstep, wrapAngle, angleDelta, type Vec3, v3, v3Set } from '@/core/math';
+import type { EventBus } from '@/core/events';
+import type { Tuning } from '@/core/tuning';
+import { WaveModel, makeSurfaceSample, type SurfaceSample } from '@/wave/wave';
+import { facePoint } from '@/wave/profile';
+import { InputEdges, NEUTRAL_INPUT, type RiderInput } from './input';
+import { judgeLanding, type LandingJudgement } from './landing';
+
+export type RiderState = 'prone' | 'face' | 'air' | 'tube' | 'floater' | 'wipeout';
+
+export interface RiderStats {
+  spin: number;
+  speed: number;
+  air: number;
+  balance: number;
+}
+
+export type WipeoutReason = 'curl' | 'bogged' | 'over-the-back' | 'bad-landing' | 'caught-prone' | 'tube-balance' | 'closeout' | 'timeout';
+
+export interface RiderEvents extends Record<string, unknown> {
+  stand: { u: number; v: number };
+  launch: { speed: number; heading: number; power: number; u: number; v: number };
+  land: LandingJudgement & { u: number; v: number; airTime: number; speed: number };
+  wipeout: { reason: WipeoutReason; u: number };
+  respawn: { u: number };
+  jumpLoad: { power: number };
+}
+
+export interface RiderPose {
+  pos: Vec3;
+  forward: Vec3;
+  up: Vec3;
+  right: Vec3;
+  /** Board reversed (fakie). */
+  fakie: boolean;
+}
+
+const TWO_PI = Math.PI * 2;
+
+export class RiderSim {
+  state: RiderState = 'prone';
+  u: number;
+  v: number;
+  speed = 0;
+  /** Velocity heading in the tangent plane, radians from +u toward +v. */
+  heading = 0;
+  /** Extra board yaw relative to heading (slides); 0 for now. */
+  boardYaw = 0;
+  fakie = false;
+  jumpLoad = 0;
+  stateTime = 0;
+  totalTime = 0;
+  // air
+  readonly airPos = v3();
+  readonly airVel = v3();
+  airYaw = 0;
+  launchHeading = 0;
+  airTime = 0;
+  private launchUp = v3(0, 1, 0);
+  private launchForward = v3(1, 0, 0);
+  private stats: RiderStats;
+  private edges = new InputEdges();
+  private sample: SurfaceSample = makeSurfaceSample();
+  private p2 = { d: 0, y: 0 };
+  lastLanding: LandingJudgement | null = null;
+  lastWipeout: WipeoutReason | null = null;
+  /** Set by the tube module (M3); face physics defers to it while non-null. */
+  wipeouts = 0;
+
+  constructor(
+    readonly wave: WaveModel,
+    private tuning: Tuning,
+    stats: RiderStats,
+    private events: EventBus<RiderEvents>,
+    start?: { u?: number; v?: number; state?: RiderState },
+  ) {
+    this.stats = stats;
+    this.u = start?.u ?? wave.curlU + tuning.rider.respawnAheadU;
+    this.v = start?.v ?? tuning.rider.respawnV;
+    if (start?.state) this.state = start.state;
+    if (this.state === 'face') this.speed = tuning.rider.trimSpeed * 0.8;
+  }
+
+  setStats(stats: RiderStats): void {
+    this.stats = stats;
+  }
+
+  get input(): Readonly<RiderInput> {
+    return this.edges.current;
+  }
+
+  /** Signed stick component toward the wave wall (+ = up the face), independent of break direction. */
+  private toWall(input: Readonly<RiderInput>): number {
+    return this.wave.params.direction * input.stickX;
+  }
+
+  step(dt: number, input: Readonly<RiderInput> = NEUTRAL_INPUT): void {
+    this.edges.update(input);
+    this.totalTime += dt;
+    this.stateTime += dt;
+    switch (this.state) {
+      case 'prone':
+        this.stepProne(dt, input);
+        break;
+      case 'face':
+        this.stepFace(dt, input);
+        break;
+      case 'air':
+        this.stepAir(dt, input);
+        break;
+      case 'wipeout':
+        this.stepWipeout(dt);
+        break;
+      case 'tube':
+      case 'floater':
+        // handled by M3 modules; fall back to face physics so nothing gets stuck
+        this.stepFace(dt, input);
+        break;
+    }
+  }
+
+  private setState(s: RiderState): void {
+    this.state = s;
+    this.stateTime = 0;
+  }
+
+  // ───────────────────────────── prone ─────────────────────────────
+  private stepProne(dt: number, input: Readonly<RiderInput>): void {
+    const R = this.tuning.rider;
+    // the wave lifts you up the face as it approaches; paddling left/right shifts you along the line
+    this.v = clamp(this.v + R.proneLiftRate * dt, 0, 1);
+    this.u += this.wave.params.direction * input.stickX * R.proneSpeed * dt;
+    this.speed = R.proneSpeed;
+    this.heading = 0;
+    const behind = this.u - this.wave.curlU;
+    if (behind < R.curlCatchMarginU * 0.5) {
+      this.wipeout('caught-prone');
+      return;
+    }
+    const [lo, hi] = R.standWindowV;
+    if (this.edges.pressed('stand') || (this.v >= hi && input.stand)) {
+      if (this.v >= lo) this.stand();
+    } else if (this.v >= 0.92) {
+      // too late: over the falls
+      this.wipeout('caught-prone');
+    }
+  }
+
+  private stand(): void {
+    const R = this.tuning.rider;
+    this.setState('face');
+    this.speed = R.proneSpeed + R.dropSpeedBoost + this.stats.speed * 2;
+    this.heading = -0.3; // angled down the face, down the line
+    this.fakie = false;
+    this.events.emit('stand', { u: this.u, v: this.v });
+  }
+
+  // ───────────────────────────── face ─────────────────────────────
+  /** 1 in the pocket, falling toward (1 - shoulderSpeedLoss) far ahead of the curl where the wave has no push. */
+  private wavePower(): number {
+    const R = this.tuning.rider;
+    const ahead = this.u - this.wave.curlU;
+    return 1 - R.shoulderSpeedLoss * smoothstep(R.shoulderStartU, R.shoulderEndU, ahead);
+  }
+
+  private trimTarget(power: number): number {
+    const R = this.tuning.rider;
+    const ahead = this.u - this.wave.curlU;
+    const powerZone = clamp(1 - Math.abs(this.v - 0.45) / 0.55, 0, 1); // 1 mid-face, ~0 at trough/lip
+    let target = R.trimSpeed * (0.65 + 0.55 * powerZone);
+    target *= power;
+    target *= 1 + R.pocketSpeedGain * (1 - smoothstep(0, 8, ahead));
+    target *= 1 + this.stats.speed * 0.25;
+    return target;
+  }
+
+  private stepFace(dt: number, input: Readonly<RiderInput>): void {
+    const R = this.tuning.rider;
+    const A = this.tuning.air;
+    const s = this.wave.sample(this.u, this.v, this.sample);
+    const toWall = this.toWall(input);
+
+    // steering: the board wants to trim along the line; hold toward the wall to keep climbing
+    let rate = R.turnRate;
+    if (input.carve) rate = R.carveTurnRate;
+    else if (input.grab) rate = R.grabTurnRate;
+    if (Math.abs(toWall) < 0.15) this.heading = damp(this.heading, 0, R.headingLevelRate, dt);
+    else this.heading = wrapAngle(this.heading + rate * toWall * dt);
+
+    // forces along the heading
+    const sinH = Math.sin(this.heading);
+    const gAlong = -R.gravityAlongFace * Math.sin(s.slope) * sinH;
+    const power = this.wavePower();
+    const trim = this.trimTarget(power);
+    const relax = this.speed < trim ? R.relaxBelowTrim : R.relaxAboveTrim;
+    let a = gAlong + (trim - this.speed) * relax;
+    if (input.stickY > 0.3) {
+      const pumpEff = sinH < 0 ? 1 + R.pumpDescendBonus * -sinH : 1 - 0.7 * sinH;
+      a += R.pumpAccel * input.stickY * pumpEff * power * power;
+    } else if (input.stickY < -0.3) {
+      a -= R.stallDecel * -input.stickY;
+    }
+    if (input.carve && Math.abs(toWall) > 0.2) a += R.carveAccel * Math.abs(toWall);
+    const maxSpeed = R.maxSpeed * (1 + this.stats.speed * 0.2);
+    this.speed = clamp(this.speed + a * dt, 0, maxSpeed);
+
+    // jump loading (hold) — pressing Up cancels the load (design doc §4.1)
+    if (input.jump) {
+      if (input.stickY > 0.5) this.jumpLoad = 0;
+      else this.jumpLoad = clamp(this.jumpLoad + dt / A.loadMaxSeconds, 0, 1);
+    }
+
+    // move in wave space
+    const du = this.speed * Math.cos(this.heading) * dt;
+    const dv = (this.speed * sinH * dt) / s.vScale;
+    this.u += du;
+    this.v += dv;
+
+    // bogging: too slow high on the face → slide down; too slow anywhere → fall
+    if (this.speed < R.bogSpeed && this.v > 0.35) this.v -= ((R.bogSpeed - this.speed) / R.bogSpeed) * 0.35 * dt;
+    if (this.speed < R.minStandSpeed && this.stateTime > 0.5) {
+      this.wipeout('bogged');
+      return;
+    }
+
+    // trough boundary: the board levels out on flat water
+    if (this.v < 0.03) {
+      this.v = 0.03;
+      if (this.heading < 0) this.heading = damp(this.heading, 0, 12, dt);
+    }
+
+    // lip boundary: launch, or fall over the back
+    const releasedJump = this.edges.released('jump');
+    const wantsLaunch = (releasedJump || (this.v >= 1 && input.jump)) && this.v >= A.launchMinV && sinH >= A.launchMinHeading;
+    if (wantsLaunch) {
+      const power = Math.max(this.jumpLoad, A.loadMinFraction);
+      this.jumpLoad = 0;
+      this.launch(power);
+      return;
+    }
+    if (releasedJump) this.jumpLoad = 0;
+    if (this.v > 1) {
+      if (sinH > R.overTheBackSin) {
+        this.wipeout('over-the-back');
+        return;
+      }
+      this.v = 1;
+      this.heading = damp(this.heading, 0, 8, dt);
+    }
+
+    // the curl: fall behind it and you're in the whitewater
+    const { behind } = this.wave.distanceToBreak(this.u);
+    if (behind < -R.curlCatchMarginU) {
+      this.wipeout('curl');
+      return;
+    }
+  }
+
+  // ───────────────────────────── air ─────────────────────────────
+  private launch(power: number): void {
+    const A = this.tuning.air;
+    const s = this.wave.sample(this.u, this.v, this.sample);
+    const cosH = Math.cos(this.heading);
+    const sinH = Math.sin(this.heading);
+    const dir = this.wave.params.direction;
+    // Explicit launch model (not the raw face tangent, which is nearly vertical at the lip):
+    //   up    = base pop + loaded pop + a slice of speed, scaled by the Air stat
+    //   along = carry down the line
+    //   shore = drift toward the shore so the arc comes back down onto the face
+    const up = (A.launchBase + A.launchPerPower * power + this.speed * A.launchSpeedScale * sinH * power) * (1 + this.stats.air * A.hangTimeStatScale);
+    const along = this.speed * (Math.max(cosH, 0.15) * 0.85 + 0.15);
+    const shore = 0.9 + up * 0.28 + this.speed * sinH * 0.12;
+    v3Set(this.airVel, dir * along, up, -shore);
+    v3Set(this.airPos, s.pos.x + s.n.x * 0.15, s.pos.y + s.n.y * 0.15, s.pos.z + s.n.z * 0.15);
+    v3Set(this.launchUp, s.n.x, s.n.y, s.n.z);
+    v3Set(this.launchForward, cosH * s.tu.x + sinH * s.tv.x, cosH * s.tu.y + sinH * s.tv.y, cosH * s.tu.z + sinH * s.tv.z);
+    this.launchHeading = this.heading;
+    this.airYaw = 0;
+    this.airTime = 0;
+    this.setState('air');
+    this.events.emit('launch', { speed: this.speed, heading: this.heading, power, u: this.u, v: this.v });
+  }
+
+  private stepAir(dt: number, input: Readonly<RiderInput>): void {
+    const A = this.tuning.air;
+    this.airTime += dt;
+    this.airVel.y -= A.gravity * dt;
+    this.airPos.x += this.airVel.x * dt;
+    this.airPos.y += this.airVel.y * dt;
+    this.airPos.z += this.airVel.z * dt;
+    // spin
+    const spinRate = A.spinRateBase + this.stats.spin * A.spinRateStatScale;
+    let spinIn = 0;
+    if (input.spinLeft) spinIn -= 1;
+    if (input.spinRight) spinIn += 1;
+    if (spinIn === 0) spinIn = input.stickX;
+    this.airYaw += spinRate * spinIn * dt;
+    // track wave-space u so the wave/camera know where we are
+    this.u = this.wave.params.direction * this.airPos.x;
+    const dTarget = -this.airPos.z;
+    const { v, behindLip } = this.solveV(this.u, dTarget);
+    this.v = v;
+    if (this.airVel.y < 0) {
+      if (behindLip) {
+        // came down behind the lip / into the roof
+        this.wipeout('over-the-back');
+        return;
+      }
+      this.wave.position(this.u, v, this.sample.pos);
+      if (this.airPos.y <= this.sample.pos.y + 0.05) {
+        this.land();
+        return;
+      }
+    }
+    if (this.airTime > A.airTimeoutSeconds) this.wipeout('timeout');
+  }
+
+  /** Find the face coordinate v whose shoreward distance matches d (metres from the trough line). */
+  private solveV(u: number, d: number): { v: number; behindLip: boolean } {
+    const prof = this.wave.profileAt(u);
+    if (d >= 0) return { v: 0.03, behindLip: false };
+    // d(v) decreases monotonically up to the vertical point; bisect there
+    const vVert = Math.min(1, Math.PI / 2 / prof.phiFace);
+    facePoint(prof, vVert, this.p2);
+    if (d < this.p2.d) return { v: vVert, behindLip: true };
+    let lo = 0;
+    let hi = vVert;
+    for (let i = 0; i < 18; i++) {
+      const mid = (lo + hi) / 2;
+      facePoint(prof, mid, this.p2);
+      if (this.p2.d > d) lo = mid;
+      else hi = mid;
+    }
+    return { v: (lo + hi) / 2, behindLip: false };
+  }
+
+  private land(): void {
+    const A = this.tuning.air;
+    // The board pitches with the arc, so with no spin it comes down at the mirror angle by itself;
+    // what gets judged is the spin residual: multiples of 180° (fakie included) are Perfect.
+    const boardYaw = wrapAngle(-this.launchHeading + this.airYaw);
+    const j = judgeLanding(this.launchHeading, boardYaw, A.perfectWindowDeg, A.sloppyWindowDeg, this.airYaw);
+    this.lastLanding = j;
+    const airTime = this.airTime;
+    if (j.rating === 'wipeout') {
+      this.events.emit('land', { ...j, u: this.u, v: this.v, airTime, speed: 0 });
+      this.wipeout('bad-landing');
+      return;
+    }
+    this.fakie = j.fakie;
+    // ride away in the direction of travel projected onto the face, plus the residual error
+    const s = this.wave.sample(this.u, this.v, this.sample);
+    const alongU = this.airVel.x * s.tu.x + this.airVel.y * s.tu.y + this.airVel.z * s.tu.z;
+    const alongV = this.airVel.x * s.tv.x + this.airVel.y * s.tv.y + this.airVel.z * s.tv.z;
+    const travel = Math.atan2(alongV, Math.max(alongU, 0.5));
+    this.heading = wrapAngle(clamp(travel, -1.2, 0.2) + j.errorRad * 0.5);
+    const horiz = Math.hypot(alongU, alongV);
+    const keep = j.rating === 'perfect' ? A.landSpeedKeepPerfect : A.landSpeedKeepSloppy;
+    this.speed = Math.max(this.tuning.rider.minStandSpeed + 1.5, horiz * keep);
+    this.setState('face');
+    this.events.emit('land', { ...j, u: this.u, v: this.v, airTime, speed: this.speed });
+  }
+
+  // ───────────────────────────── wipeout ─────────────────────────────
+  wipeout(reason: WipeoutReason): void {
+    if (this.state === 'wipeout') return;
+    this.lastWipeout = reason;
+    this.wipeouts++;
+    this.setState('wipeout');
+    this.speed = 0;
+    this.jumpLoad = 0;
+    this.events.emit('wipeout', { reason, u: this.u });
+  }
+
+  private stepWipeout(dt: number): void {
+    const R = this.tuning.rider;
+    // tumble in the whitewater just behind the curl
+    this.u = damp(this.u, this.wave.curlU - 2.5, 3, dt);
+    this.v = damp(this.v, 0.12, 4, dt);
+    if (this.stateTime >= R.wipeoutTumbleSeconds) {
+      // catch the next wave: reappear prone ahead of the curl
+      this.u = this.wave.curlU + R.respawnAheadU;
+      this.v = R.respawnV;
+      this.heading = 0;
+      this.fakie = false;
+      this.setState('prone');
+      this.events.emit('respawn', { u: this.u });
+    }
+  }
+
+  // ───────────────────────────── queries ─────────────────────────────
+  /** World-space pose for rendering (allocation-free into `out`). */
+  pose(out: RiderPose): RiderPose {
+    const s = this.sample;
+    if (this.state === 'air') {
+      v3Set(out.pos, this.airPos.x, this.airPos.y, this.airPos.z);
+      // the board pitches to follow the arc: forward blends from the launch direction to the velocity
+      const t = clamp(this.airTime * 1.6, 0, 1);
+      const vl = Math.hypot(this.airVel.x, this.airVel.y, this.airVel.z) || 1;
+      const f = {
+        x: lerp(this.launchForward.x, this.airVel.x / vl, t),
+        y: lerp(this.launchForward.y, this.airVel.y / vl, t),
+        z: lerp(this.launchForward.z, this.airVel.z / vl, t),
+      };
+      const up = this.launchUp;
+      const c = Math.cos(this.airYaw);
+      const sn = Math.sin(this.airYaw);
+      // Rodrigues rotation
+      const dot = f.x * up.x + f.y * up.y + f.z * up.z;
+      const cx = up.y * f.z - up.z * f.y;
+      const cy = up.z * f.x - up.x * f.z;
+      const cz = up.x * f.y - up.y * f.x;
+      v3Set(out.forward, f.x * c + cx * sn + up.x * dot * (1 - c), f.y * c + cy * sn + up.y * dot * (1 - c), f.z * c + cz * sn + up.z * dot * (1 - c));
+      // blend up toward world up mid-air
+      const tu = clamp(this.airTime * 2, 0, 0.6);
+      v3Set(out.up, lerp(up.x, 0, tu), lerp(up.y, 1, tu), lerp(up.z, 0, tu));
+    } else {
+      this.wave.sample(this.u, this.v, s);
+      const lift = this.state === 'wipeout' ? 0.05 : 0.12;
+      v3Set(out.pos, s.pos.x + s.n.x * lift, s.pos.y + s.n.y * lift, s.pos.z + s.n.z * lift);
+      const h = this.state === 'prone' ? 0 : this.heading + this.boardYaw;
+      const cH = Math.cos(h);
+      const sH = Math.sin(h);
+      v3Set(out.forward, cH * s.tu.x + sH * s.tv.x, cH * s.tu.y + sH * s.tv.y, cH * s.tu.z + sH * s.tv.z);
+      v3Set(out.up, s.n.x, s.n.y, s.n.z);
+    }
+    // orthonormalise
+    const f = out.forward;
+    const u = out.up;
+    const fl = Math.hypot(f.x, f.y, f.z) || 1;
+    f.x /= fl;
+    f.y /= fl;
+    f.z /= fl;
+    const ul = Math.hypot(u.x, u.y, u.z) || 1;
+    u.x /= ul;
+    u.y /= ul;
+    u.z /= ul;
+    const rx = f.y * u.z - f.z * u.y;
+    const ry = f.z * u.x - f.x * u.z;
+    const rz = f.x * u.y - f.y * u.x;
+    const rl = Math.hypot(rx, ry, rz) || 1;
+    v3Set(out.right, rx / rl, ry / rl, rz / rl);
+    // re-derive forward from right × up to keep it orthogonal
+    v3Set(out.forward, u.y * out.right.z - u.z * out.right.y, u.z * out.right.x - u.x * out.right.z, u.x * out.right.y - u.y * out.right.x);
+    out.fakie = this.fakie;
+    return out;
+  }
+
+  /** Heading relative to the +u tangent, as seen on screen (positive = toward the wall). */
+  get headingDeg(): number {
+    return (this.heading * 180) / Math.PI;
+  }
+
+  get aheadOfCurl(): number {
+    return this.u - this.wave.curlU;
+  }
+
+  snapshot(): Record<string, unknown> {
+    return {
+      state: this.state,
+      u: +this.u.toFixed(2),
+      v: +this.v.toFixed(3),
+      speed: +this.speed.toFixed(2),
+      headingDeg: +this.headingDeg.toFixed(1),
+      ahead: +this.aheadOfCurl.toFixed(2),
+      jumpLoad: +this.jumpLoad.toFixed(2),
+      airTime: +this.airTime.toFixed(2),
+      airYawDeg: +((this.airYaw * 180) / Math.PI).toFixed(0),
+      lastLanding: this.lastLanding?.rating ?? null,
+      lastWipeout: this.lastWipeout,
+      wipeouts: this.wipeouts,
+      fakie: this.fakie,
+    };
+  }
+}
+
+export function makePose(): RiderPose {
+  return { pos: v3(), forward: v3(1, 0, 0), up: v3(0, 1, 0), right: v3(0, 0, 1), fakie: false };
+}
+
+export { angleDelta, TWO_PI };

@@ -40,12 +40,12 @@ float fbm(vec2 p) {
 }
 /** Small-scale ripple normal perturbation from scrolling noise (tangent-space-ish, world XZ). */
 vec3 rippleNormal(vec2 xz, float t, float strength) {
-  float e = 0.35;
-  vec2 p = xz * 0.9 + vec2(t * 0.35, -t * 0.22);
-  vec2 q = xz * 2.7 + vec2(-t * 0.5, t * 0.41);
-  float h = fbm(p) * 0.7 + fbm(q) * 0.3;
-  float hx = fbm(p + vec2(e, 0.0)) * 0.7 + fbm(q + vec2(e * 3.0, 0.0)) * 0.3;
-  float hz = fbm(p + vec2(0.0, e)) * 0.7 + fbm(q + vec2(0.0, e * 3.0)) * 0.3;
+  float e = 0.25;
+  vec2 p = xz * 0.55 + vec2(t * 0.3, -t * 0.2);
+  vec2 q = xz * 3.4 + vec2(-t * 0.55, t * 0.45);
+  float h = fbm(p) * 0.55 + fbm(q) * 0.45;
+  float hx = fbm(p + vec2(e, 0.0)) * 0.55 + fbm(q + vec2(e * 4.0, 0.0)) * 0.45;
+  float hz = fbm(p + vec2(0.0, e)) * 0.55 + fbm(q + vec2(0.0, e * 4.0)) * 0.45;
   return normalize(vec3(-(hx - h) * strength, 1.0, -(hz - h) * strength));
 }
 vec3 skyColorFor(vec3 dir) {
@@ -101,7 +101,7 @@ void main() {
   vec3 N = normalize(vNormal);
   if (!gl_FrontFacing) N = -N;
   // detail ripples, weaker on foam and the overhanging lip
-  vec3 rn = rippleNormal(vWorldPos.xz + vec2(0.0, vWorldPos.y * 0.7), uTime, 0.9);
+  vec3 rn = rippleNormal(vWorldPos.xz + vec2(0.0, vWorldPos.y * 0.7), uTime, 0.42);
   // blend ripple into the surface normal using a crude tangent frame
   vec3 T = normalize(cross(N, vec3(0.0, 0.0, 1.0)) + vec3(1e-4));
   vec3 B = cross(N, T);
@@ -130,7 +130,8 @@ void main() {
   fres *= 1.0 - vFoam * 0.8;
   vec3 col = mix(diffuse, sky, fres * 0.85);
   vec3 H = normalize(L + V);
-  float spec = pow(max(dot(N, H), 0.0), 220.0) * 1.6 + pow(max(dot(N, H), 0.0), 40.0) * 0.12;
+  float ndh = max(dot(N, H), 0.0);
+  float spec = pow(ndh, 420.0) * 0.9 + pow(ndh, 60.0) * 0.14;
   col += uSunColor * spec * (1.0 - vFoam * 0.7) * (1.0 - tubeDark);
 
   // foam / whitewater: bright, rough, near-unlit
@@ -192,9 +193,9 @@ vec3 gerstner(vec2 xz, float t, out vec3 nrm, float mask) {
 
 void main() {
   vec4 wp0 = modelMatrix * vec4(position, 1.0);
-  // fade ambient waves to zero within the wave strip's flat skirt so the seam is invisible
+  // fade ambient waves to zero under the wave strip (centre uAmpMask0, half-extent uAmpMask1) so the seam is invisible
   float dz = wp0.z - uAmpMask0;
-  float mask = smoothstep(0.0, uAmpMask1, abs(dz));
+  float mask = smoothstep(uAmpMask1, uAmpMask1 + 25.0, abs(dz));
   vec3 n;
   vec3 p = gerstner(wp0.xz, uTime, n, mask);
   vWorldPos = vec3(p.x, wp0.y + p.y, p.z);
@@ -216,18 +217,20 @@ varying float vFoam;
 void main() {
   vec3 V = normalize(cameraPosition - vWorldPos);
   vec3 N = normalize(vNormal);
-  vec3 rn = rippleNormal(vWorldPos.xz, uTime, 0.7);
+  vec3 rn = rippleNormal(vWorldPos.xz, uTime, 0.42);
   N = normalize(vec3(N.x + rn.x, N.y, N.z + rn.z));
   vec3 L = normalize(uSunDir);
   float ndl = max(dot(N, L), 0.0);
   float ndv = max(dot(N, V), 0.0);
-  vec3 body = mix(uDeepColor, uShallowColor, 0.12);
-  vec3 diffuse = body * (0.45 + 0.55 * ndl);
+  // identical to the wave strip's flat rows (height 0, no foam) so the seam is invisible
+  vec3 body = uDeepColor;
+  vec3 diffuse = body * (0.42 + 0.58 * ndl);
   vec3 R = reflect(-V, N);
   float fres = 0.03 + 0.97 * pow(1.0 - ndv, 5.0);
-  vec3 col = mix(diffuse, skyColorFor(R), fres * 0.9);
+  vec3 col = mix(diffuse, skyColorFor(R), fres * 0.85);
   vec3 H = normalize(L + V);
-  col += uSunColor * (pow(max(dot(N, H), 0.0), 260.0) * 1.4 + pow(max(dot(N, H), 0.0), 30.0) * 0.1);
+  float ndh = max(dot(N, H), 0.0);
+  col += uSunColor * (pow(ndh, 420.0) * 0.9 + pow(ndh, 60.0) * 0.14);
   float fog = smoothstep(uFogNear, uFogFar, vViewZ);
   col = mix(col, uSkyHorizon, fog);
   gl_FragColor = vec4(col, 1.0);
