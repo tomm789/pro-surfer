@@ -3,7 +3,7 @@
  * measurements are also written to a JSON report so a tuning pass can read the actual numbers.
  */
 import { describe, expect, it, afterAll } from 'vitest';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { Rng } from '@/core/rng';
 import { EventBus } from '@/core/events';
 import { TUNING } from '@/core/tuning';
@@ -20,8 +20,11 @@ const MID = { spin: 0.5, speed: 0.5, air: 0.5, balance: 0.5 };
 const report: Record<string, unknown> = {};
 
 afterAll(() => {
+  // `npm run feel` prints this report; LINEUP_SCRATCH overrides the directory
   try {
-    writeFileSync(`${process.env.LINEUP_SCRATCH ?? '/tmp'}/feel-report.json`, JSON.stringify(report, null, 2));
+    const dir = process.env.LINEUP_SCRATCH ?? 'artifacts';
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(`${dir}/feel-report.json`, JSON.stringify(report, null, 2));
   } catch {
     /* optional */
   }

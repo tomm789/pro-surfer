@@ -56,11 +56,16 @@ Lessons (seven short tutorials with on-screen hints, from standing up to the tub
 ## Development
 
 ```bash
-npm run check        # typecheck + tests + build
-npm run test         # vitest
+bash scripts/setup.sh   # npm ci, headless Chromium for the tools, npm run check
+npm run check           # typecheck + tests + build
+npm run test            # vitest
+npm run smoke           # walks every menu flow headlessly, fails on runtime errors
+npm run feel            # design doc §14 feel checklist with a measurement report
 npm run shot -- --scene ride --beach reefpass --ft 10 --t 20   # headless screenshot into artifacts/
 npm run clip -- --scene ride --seconds 10                       # headless WebM clip
 ```
+
+Coding agents (Codex, Claude) read `AGENTS.md`; `docs/CODEX.md` has the Codex setup and kickoff prompt; `docs/BACKLOG.md` is the prioritised open work.
 
 The simulation (`src/core`, `src/wave`, `src/rider`, `src/tricks`, `src/scoring`, `src/goals`, `src/world`, `src/save`) is deterministic and has no DOM or Three.js dependencies; a test enforces this. Every tunable constant lives in `data/tuning.json`; tricks, beaches, levels, riders and boards are data files under `data/`.
 

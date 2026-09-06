@@ -1,11 +1,12 @@
 # LINE-UP (working title) — surf trick game, macOS
 
-Read `docs/DESIGN.md` before any gameplay work. It is the spec. `docs/DECISIONS.md` records the technical decisions made after research; `docs/PLAN.md` is the milestone plan.
+Read `AGENTS.md` first. It is the canonical contributor guide for every agent (Claude, Codex, humans): rules, layout, commands, verification standard, git workflow. This file only repeats the essentials.
+
+Read `docs/DESIGN.md` before any gameplay work. It is the spec. `docs/DECISIONS.md` records the technical decisions made after research; `docs/PLAN.md` is the milestone plan; `docs/BACKLOG.md` is the prioritised open work.
 
 - Sections 3–6 of the design doc define wave, rider states, tricks and scoring. Implement them as written; put every tunable constant in `data/tuning.json`.
 - Tricks, beaches, goals, riders and boards are data files under `data/`. Never hard-code a trick or a goal.
 - Rider physics runs in wave space (u along the crest, v up the face) and is converted to world space for rendering.
-- Milestones and acceptance criteria are in design doc §13. Work one milestone at a time.
 - Original IP only: no real surfers, brands, logos or the original game's name anywhere in code, assets or UI.
 
 ## Engine and layout
@@ -20,4 +21,5 @@ Read `docs/DESIGN.md` before any gameplay work. It is the spec. `docs/DECISIONS.
 - `npm run dev` — dev server (host 0.0.0.0, port 5173). `npm run check` — typecheck + tests + build.
 - `npm run shot -- --scene <name> --t <seconds>` renders a headless screenshot into `artifacts/` (SwiftShader WebGL2 works in this container).
 - `npm run clip -- --scene <name> --seconds 10` records a short WebM clip into `artifacts/`.
+- `npm run smoke` walks every menu flow headlessly; `npm run feel` prints the design doc §14 measurements.
 - Unit tests live in `tests/` (vitest). Simulation code must be testable without a browser.
