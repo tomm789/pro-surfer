@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Tuning } from '@/core/tuning';
 import type { RiderPose, RiderState } from '@/rider/rider';
 
-export type CameraMode = 'chase' | 'wide' | 'tube' | 'object';
+export type CameraMode = 'chase' | 'wide' | 'tube' | 'object' | 'close';
 
 /**
  * Third-person camera that lives shoreward of the rider, looks down the line, and frames the curl.
@@ -40,6 +40,9 @@ export class ChaseCamera {
     if (this.mode === 'wide') {
       dist = C.wideDistance;
       height = C.wideHeight;
+    } else if (this.mode === 'close') {
+      dist = C.chaseDistance * 0.5;
+      height = C.chaseHeight * 0.55;
     } else if (this.mode === 'tube') {
       dist = C.tubeDistance;
       height = C.tubeHeight;

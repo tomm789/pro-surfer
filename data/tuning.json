@@ -54,11 +54,12 @@
     "respawnV": 0.25,
     "boardLength": 1.9,
     "headingLevelRate": 2.4,
-    "overTheBackSin": 0.7,
+    "overTheBackSin": 0.85,
     "stallSpeedFraction": 0.42,
     "superStallSpeedFraction": 0.22,
     "stallRelax": 2.4,
-    "respawnAheadSeconds": 3.4
+    "respawnAheadSeconds": 3.4,
+    "overTheBackMinSpeed": 6.5
   },
   "air": {
     "gravity": 9.81,

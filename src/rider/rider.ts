@@ -297,12 +297,14 @@ export class RiderSim {
       return;
     }
     if (this.v > 1) {
-      if (sinH > R.overTheBackSin) {
+      // only a fast, near-vertical hit at the lip throws you over the back; otherwise you bounce off the lip
+      if (sinH > R.overTheBackSin && this.speed > R.overTheBackMinSpeed) {
         this.wipeout('over-the-back');
         return;
       }
       this.v = 1;
-      this.heading = damp(this.heading, 0, 8, dt);
+      this.heading = damp(this.heading, -0.25, 9, dt);
+      this.speed *= 1 - 1.2 * dt;
     }
 
     // tube entry: in the pocket under a roof, slow enough (stalling makes it deliberate)

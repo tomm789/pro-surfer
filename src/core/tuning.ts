@@ -54,6 +54,7 @@ export const TuningSchema = z.object({
     boardLength: z.number().positive(),
     headingLevelRate: z.number().nonnegative(),
     overTheBackSin: z.number().min(0).max(1),
+    overTheBackMinSpeed: z.number().nonnegative(),
     stallSpeedFraction: z.number().min(0).max(1),
     superStallSpeedFraction: z.number().min(0).max(1),
     stallRelax: z.number().nonnegative(),

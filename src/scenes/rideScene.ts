@@ -12,6 +12,7 @@ import { WaveMesh } from '@/render/waveMesh';
 import { Environment } from '@/render/environment';
 import { createWaterUniforms } from '@/render/waterUniforms';
 import { RiderView } from '@/render/riderView';
+import { SpraySystem } from '@/render/spray';
 import { ChaseCamera } from '@/render/chaseCamera';
 import { InputManager } from '@/input/inputManager';
 import { TrickSystem, type TrickEvents } from '@/tricks/executor';
@@ -43,6 +44,8 @@ export class RideScene implements GameScene {
   private env!: Environment;
   private uniforms!: ReturnType<typeof createWaterUniforms>;
   private riderView!: RiderView;
+  private spray!: SpraySystem;
+  private sprayTmp = { x: 0, y: 0, z: 0 };
   private cam!: ChaseCamera;
   private hud!: Hud;
   private inputManager = new InputManager(TUNING.input.deadzone);
@@ -106,8 +109,11 @@ export class RideScene implements GameScene {
     this.scene.add(this.waveMesh.mesh);
     this.riderView = new RiderView(TUNING.rider.boardLength);
     this.scene.add(this.riderView.group);
+    this.spray = new SpraySystem();
+    this.scene.add(this.spray.points);
     this.cam = new ChaseCamera(TUNING);
-    if (ctx.params.get('cam') === 'wide') this.cam.mode = 'wide';
+    const camParam = ctx.params.get('cam');
+    if (camParam === 'wide' || camParam === 'close') this.cam.mode = camParam;
     this.rider.pose(this.pose);
     this.cam.snapTo(this.pose, this.wave.params.direction);
     if (!ctx.headless && !this.attract && !ctx.params.has('hosted')) this.inputManager.attach(window);
@@ -169,7 +175,21 @@ export class RideScene implements GameScene {
     this.events.on('tubeEnter', (e) => this.log(`tubeEnter ${e.passive ? 'passive' : 'stall'}`));
     this.events.on('tubeExit', (e) => {
       this.log(`tubeExit ${e.seconds.toFixed(1)}s depth=${e.maxDepth.toFixed(2)} spit=${e.spit}`);
-      if (e.spit) this.hud.flash('SPIT!', 'info', 0.9);
+      if (e.spit) {
+        this.hud.flash('SPIT!', 'info', 0.9);
+        const p = this.pose.pos;
+        this.burst(p.x, p.y + 0.8, p.z, 160, this.wave.params.direction * 9, 2.5, -2, 2.4, 1.2);
+      }
+    });
+    this.events.on('wipeout', (e) => {
+      if (e.reason === 'exit') return;
+      const p = this.pose.pos;
+      this.burst(p.x, p.y + 0.3, p.z, 90, 0, 4, 0, 1.6, 0.9);
+    });
+    this.events.on('land', (e) => {
+      if (e.rating === 'wipeout') return;
+      const p = this.pose.pos;
+      this.burst(p.x, p.y + 0.1, p.z, 40, 0, 2.5, 0, 1.0, 0.6);
     });
     this.events.on('floaterStart', () => this.log('floaterStart'));
     this.events.on('floaterEnd', (e) => this.log(`floaterEnd ${e.overSection ? 'section' : 'face'}`));
@@ -304,10 +324,51 @@ export class RideScene implements GameScene {
     }
     this.rider.pose(this.pose);
     const speed01 = Math.min(1, this.rider.speed / TUNING.rider.maxSpeed);
-    this.riderView.update(this.pose, this.rider.state, dt, speed01);
+    const r = this.rider;
+    const lean = Math.max(-1, Math.min(1, r.heading / 0.9)) * (r.state === 'face' ? 1 : 0);
+    this.riderView.update(this.pose, r.state, dt, {
+      speed01,
+      lean,
+      carve: input.carve,
+      grab: input.grab,
+      slide: input.slide,
+      trickId: this.tricks.activeTrick?.id ?? this.tricks.pendingAirTricks[this.tricks.pendingAirTricks.length - 1]?.id ?? null,
+      tubeDepth: r.tube.depth,
+      airTime: r.airTime,
+    });
+    this.updateSpray(dt, lean, speed01);
+    this.spray.update(dt);
     this.cam.update(this.pose, this.wave.params.direction, this.rider.state, speed01, dt);
     this.updateHudState();
     this.hud.update(this.hudState, dt);
+  }
+
+  private updateSpray(dt: number, lean: number, speed01: number): void {
+    const r = this.rider;
+    const p = this.pose;
+    const dir = this.wave.params.direction;
+    // rail spray off the tail when carving hard or moving fast
+    if ((r.state === 'face' || r.state === 'floater') && r.speed > 4.5) {
+      const n = Math.floor(speed01 * 2 + Math.abs(lean) * speed01 * 7 + (this.riderView.model.poseName.startsWith('carve') ? 3 : 0));
+      const tx = p.pos.x - p.forward.x * 0.9;
+      const ty = p.pos.y - p.forward.y * 0.9 + 0.05;
+      const tz = p.pos.z - p.forward.z * 0.9;
+      const side = -Math.sign(lean || 1) * dir;
+      for (let i = 0; i < n; i++) {
+        this.spray.emit(tx, ty, tz, -p.forward.x * 2 + p.right.x * side * 3.5 * Math.abs(lean), 2 + 3.5 * Math.abs(lean), -p.forward.z * 2 + p.right.z * side * 3.5 * Math.abs(lean), 0.5 + Math.random() * 0.9, 0.45 + Math.random() * 0.3);
+      }
+    }
+    // lip mist blown back along the crest near the curl
+    for (let i = 0; i < 2; i++) {
+      const u = this.wave.curlU - 2 + Math.random() * 12;
+      this.wave.position(u, 1, this.sprayTmp);
+      this.spray.emit(this.sprayTmp.x, this.sprayTmp.y + 0.3, this.sprayTmp.z, dir * 1.5, 1.2, -2.5, 1.6 + Math.random() * 2.2, 1.0 + Math.random() * 0.6, 2);
+    }
+    void dt;
+  }
+
+  private burst(x: number, y: number, z: number, count: number, vx: number, vy: number, vz: number, size: number, life: number): void {
+    for (let i = 0; i < count; i++) this.spray.emit(x, y, z, vx, vy, vz, size * (0.6 + Math.random() * 0.8), life * (0.6 + Math.random() * 0.8), 2.5);
   }
 
   private updateHudState(): void {
@@ -358,6 +419,7 @@ export class RideScene implements GameScene {
 
   dispose(): void {
     this.waveMesh.dispose();
+    this.spray.dispose();
     this.env.dispose();
     this.inputManager.detach(window);
     this.hud.dispose();
