@@ -21,7 +21,7 @@ export interface RiderStats {
   balance: number;
 }
 
-export type WipeoutReason = 'curl' | 'bogged' | 'over-the-back' | 'bad-landing' | 'caught-prone' | 'tube-balance' | 'closeout' | 'timeout';
+export type WipeoutReason = 'curl' | 'bogged' | 'over-the-back' | 'bad-landing' | 'caught-prone' | 'tube-balance' | 'closeout' | 'timeout' | 'exit';
 
 export interface RiderEvents extends Record<string, unknown> {
   stand: { u: number; v: number };

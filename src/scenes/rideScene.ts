@@ -14,6 +14,7 @@ import { createWaterUniforms } from '@/render/waterUniforms';
 import { RiderView } from '@/render/riderView';
 import { ChaseCamera } from '@/render/chaseCamera';
 import { InputManager } from '@/input/inputManager';
+import { TrickSystem, type TrickEvents } from '@/tricks/executor';
 
 /**
  * M2 playable: wave + rider + chase camera + debug HUD.
@@ -26,6 +27,9 @@ export class RideScene implements GameScene {
   private wave!: WaveModel;
   private rider!: RiderSim;
   private events = new EventBus<RiderEvents>();
+  private trickEvents = new EventBus<TrickEvents>();
+  private tricks!: TrickSystem;
+  private trickLine: string[] = [];
   private waveMesh!: WaveMesh;
   private env!: Environment;
   private uniforms!: ReturnType<typeof createWaterUniforms>;
@@ -56,7 +60,20 @@ export class RideScene implements GameScene {
     this.assistBalance = ctx.params.get('assist') === 'balance';
     const params = waveParamsFromBeach(beach, waveFeetToMetres(ft), { warnSeconds: TUNING.wave.sectionWarnSeconds });
     this.wave = new WaveModel(params, new Rng(ctx.seed), 0);
-    this.rider = new RiderSim(this.wave, TUNING, { spin: 0.5, speed: 0.5, air: 0.5, balance: 0.5 }, this.events);
+    this.rider = new RiderSim(this.wave, TUNING, { spin: 0.5, speed: 0.5, air: 0.5, balance: 0.5 }, this.events, undefined, new Rng(ctx.seed + 7));
+    this.tricks = new TrickSystem(this.rider, TUNING, this.trickEvents, this.events);
+    this.trickEvents.on('trickLand', (e) => {
+      this.trickLine.push(e.trick.name);
+      if (this.trickLine.length > 8) this.trickLine.shift();
+      this.eventLog.push(`${this.time.toFixed(2)} trickLand ${e.trick.id}`);
+    });
+    this.trickEvents.on('trickFail', (e) => this.eventLog.push(`${this.time.toFixed(2)} trickFail ${e.trick.id} ${e.reason}`));
+    this.trickEvents.on('specialLocked', (e) => this.setFlash(`${e.trick.name}: special meter not flashing`, 1.2));
+    this.trickEvents.on('exitMove', (e) => {
+      this.setFlash(`EXIT · ${e.trick.name}`, 1.5);
+      this.rider.wipeout('exit');
+    });
+    this.events.on('wipeout', () => (this.trickLine = []));
     this.uniforms = createWaterUniforms(beach);
     this.env = new Environment(beach, this.uniforms);
     this.scene.add(this.env.group);
@@ -118,6 +135,7 @@ export class RideScene implements GameScene {
     }
     this.wave.step(dt, this.rider.state === 'wipeout' ? null : this.rider.u);
     this.rider.step(dt, input);
+    this.tricks.step(dt, input);
     if (this.flashT > 0) this.flashT -= dt;
     // camera and rider pose advance with sim time so headless captures and replays are exact
     this.rider.pose(this.pose);
@@ -153,6 +171,11 @@ export class RideScene implements GameScene {
         (r.state === 'floater' ? `   FLOATER ${r.floaterSeconds.toFixed(1)}s` : ''),
       this.inputManager.gamepadName ? `pad: ${this.inputManager.gamepadName}` : 'keyboard: arrows/WASD move · Space jump · J carve · K grab · L slide/stand · Q/E spin',
     ];
+    const pending = this.tricks.pendingAirTricks.map((t) => t.name);
+    const active = this.tricks.activeTrick?.name;
+    if (this.trickLine.length || pending.length || active) {
+      lines.push('', `tricks: ${this.trickLine.join(' + ')}${active ? `  [${active}…]` : ''}${pending.length ? `  (air: ${pending.join(' + ')})` : ''}`);
+    }
     if (this.flashT > 0) lines.push('', `>>> ${this.flash} <<<`);
     this.hud.textContent = lines.join('\n');
   }
