@@ -18,6 +18,8 @@ import { TrickSystem, type TrickEvents } from '@/tricks/executor';
 import { RunController } from '@/scoring/run';
 import { Hud, type HudState } from '@/ui/hud';
 import type { AudioManager } from '@/audio/audio';
+import { GoalTracker, type GoalEvents, type Level } from '@/goals/goals';
+import { getLevel } from '@/goals/levels';
 
 /**
  * Playable ride: wave + rider + tricks + scoring + HUD.
@@ -30,10 +32,13 @@ export class RideScene implements GameScene {
   private renderer!: THREE.WebGLRenderer;
   private wave!: WaveModel;
   private rider!: RiderSim;
-  private events = new EventBus<RiderEvents>();
-  private trickEvents = new EventBus<TrickEvents>();
+  readonly events = new EventBus<RiderEvents>();
+  readonly trickEvents = new EventBus<TrickEvents>();
+  readonly goalEvents = new EventBus<GoalEvents>();
   private tricks!: TrickSystem;
   run!: RunController;
+  level: Level | null = null;
+  goals: GoalTracker | null = null;
   private waveMesh!: WaveMesh;
   private env!: Environment;
   private uniforms!: ReturnType<typeof createWaterUniforms>;
@@ -69,19 +74,30 @@ export class RideScene implements GameScene {
   init(ctx: SceneContext): void {
     this.renderer = ctx.renderer;
     this.headless = ctx.headless;
-    const beach = getBeach(ctx.params.get('beach') ?? 'sandbar');
-    this.waveFt = Number(ctx.params.get('ft') ?? 8);
+    const levelId = ctx.params.get('level');
+    this.level = levelId ? getLevel(levelId) : null;
+    const beach = getBeach(this.level?.beach ?? ctx.params.get('beach') ?? 'sandbar');
+    this.waveFt = this.level ? this.level.waveFt : Number(ctx.params.get('ft') ?? 8);
     this.auto = ctx.params.get('auto') === '1';
     this.assistBalance = ctx.params.get('assist') === 'balance';
     this.debug = ctx.params.get('debug') === '1';
     const params = waveParamsFromBeach(beach, waveFeetToMetres(this.waveFt), { warnSeconds: TUNING.wave.sectionWarnSeconds });
     this.wave = new WaveModel(params, new Rng(ctx.seed), 0);
-    this.rider = new RiderSim(this.wave, TUNING, { spin: 0.5, speed: 0.5, air: 0.5, balance: 0.5 }, this.events, undefined, new Rng(ctx.seed + 7));
+    const statsRaw = ctx.params.get('stats');
+    const stats = statsRaw ? (JSON.parse(statsRaw) as { spin: number; speed: number; air: number; balance: number }) : { spin: 0.5, speed: 0.5, air: 0.5, balance: 0.5 };
+    this.rider = new RiderSim(this.wave, TUNING, stats, this.events, undefined, new Rng(ctx.seed + 7));
     this.tricks = new TrickSystem(this.rider, TUNING, this.trickEvents, this.events);
     this.run = new RunController(TUNING, this.rider, this.events, this.tricks, this.trickEvents, {
-      untimed: ctx.params.get('free') === '1',
-      seconds: ctx.params.has('seconds') ? Number(ctx.params.get('seconds')) : undefined,
+      untimed: !this.level && ctx.params.get('free') === '1',
+      seconds: this.level ? this.level.seconds : ctx.params.has('seconds') ? Number(ctx.params.get('seconds')) : undefined,
     });
+    if (this.level) {
+      this.goals = new GoalTracker(
+        this.level,
+        { run: this.run, riderEvents: this.events, trickEvents: this.trickEvents, runEvents: this.run.events, wave: this.wave, riderU: () => this.rider.u, riderState: () => this.rider.state },
+        this.goalEvents,
+      );
+    }
 
     this.uniforms = createWaterUniforms(beach);
     this.env = new Environment(beach, this.uniforms);
@@ -116,7 +132,7 @@ export class RideScene implements GameScene {
       chainBase: 0,
       chainMultiplier: 0,
       chainOpen: false,
-      objective: ['FREE SURF', `${beach.name} · ${this.waveFt} ft ${beach.breakDirection}`],
+      objective: this.level ? [`${beach.name.toUpperCase()} · ${this.level.name.toUpperCase()}`, ...this.goals!.hudLines()] : ['FREE SURF', `${beach.name} · ${this.waveFt} ft ${beach.breakDirection}`],
       waveHeightFt: this.waveFt,
       nextWaveFt: null,
       sectionsAhead: [],
@@ -170,6 +186,15 @@ export class RideScene implements GameScene {
       if (!this.headless && b.cashedIn) this.inputManager.rumble(0.6, 0.3, 180);
     });
     this.run.events.on('chainLost', (b) => this.log(`chainLost ${b.total}`));
+    this.goalEvents.on('goalDone', (e) => {
+      this.hud.flash(`GOAL · ${e.progress.label}`, 'perfect', 1.8);
+      this.audio?.bank(50000);
+      this.log(`goalDone ${e.goal.id}`);
+    });
+    this.goalEvents.on('goalFailed', (e) => {
+      this.hud.flash(`FAILED · ${e.reason}`, 'wipeout', 1.8);
+      this.log(`goalFailed ${e.goal.id}`);
+    });
     this.run.events.on('meterYellow', () => {
       this.hud.flash('SPECIAL!', 'info', 0.8);
       this.log('meterYellow');
@@ -268,6 +293,7 @@ export class RideScene implements GameScene {
     }
     this.run.step(dt, cashIn || this.cashInEdge);
     this.cashInEdge = false;
+    if (this.goals && !this.run.ended) this.goals.update(dt);
     this.warnHook?.();
     if (this.audio && !this.attract) {
       const r = this.rider;
@@ -298,6 +324,7 @@ export class RideScene implements GameScene {
     s.chainBase = this.run.chain.base;
     s.chainMultiplier = this.run.chain.multiplier;
     s.waveHeightFt = this.waveFt;
+    if (this.goals && this.level) s.objective = [`${this.level.name.toUpperCase()}`, ...this.goals.hudLines()];
     s.sectionsAhead = this.wave.sections.map((sec) => sec.u - r.u).sort((a, b) => a - b).slice(0, 4);
     s.warning = this.wave.warnings().some((w) => w.u > r.u && w.u - r.u < 45);
     s.balance = r.state === 'tube' ? r.tube.balance : null;

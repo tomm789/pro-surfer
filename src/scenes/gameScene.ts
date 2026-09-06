@@ -5,8 +5,11 @@ import { NEUTRAL_INPUT, type RiderInput } from '@/rider/input';
 import { TUNING } from '@/core/tuning';
 import { listBeaches } from '@/world/beaches';
 import { AudioManager } from '@/audio/audio';
-import { BootScreen, MenuScreen, ResultsScreen } from '@/ui/screens';
+import { BootScreen, MenuScreen, ResultsScreen, type MenuItem, type ResultRow } from '@/ui/screens';
 import { RideScene } from './rideScene';
+import { CareerSave } from '@/save/career';
+import { listLevels, getLevel } from '@/goals/levels';
+import { getBeach } from '@/world/beaches';
 
 type Flow = 'boot' | 'menu' | 'ride' | 'paused' | 'results';
 
@@ -28,6 +31,9 @@ export class MainGameScene implements GameScene {
   private beachIndex = 0;
   private waveFt = 8;
   private freeSurf = true;
+  private career = new CareerSave();
+  private levelId: string | null = null;
+  private careerMenu: MenuScreen | null = null;
   private lastInput: Readonly<RiderInput> = NEUTRAL_INPUT;
   private prevPause = false;
   private prevMute = false;
@@ -81,7 +87,12 @@ export class MainGameScene implements GameScene {
       params.delete('auto');
       if (this.freeSurf) params.set('free', '1');
       else params.delete('free');
+      if (this.levelId) params.set('level', this.levelId);
+      else params.delete('level');
+      const st = this.career.data.stats;
+      params.set('stats', JSON.stringify({ spin: 0.45 + st.spin * 0.5, speed: 0.45 + st.speed * 0.5, air: 0.45 + st.air * 0.5, balance: 0.45 + st.balance * 0.5 }));
     }
+    if (background) params.delete('level');
     this.ride = new RideScene();
     this.ride.audio = this.audio;
     this.ride.init({ ...this.ctx, params });
@@ -90,11 +101,22 @@ export class MainGameScene implements GameScene {
 
   private openMenu(): void {
     this.flow = 'menu';
+    this.careerMenu?.dispose();
+    this.careerMenu = null;
     this.menu?.dispose();
     this.menu = new MenuScreen(
       this.ctx.uiRoot,
       'LINE-UP',
       [
+        {
+          id: 'career',
+          label: 'Career',
+          value: () => `${Object.values(this.career.data.completedGoals).reduce((n, g) => n + g.length, 0)} goals`,
+          onSelect: () => {
+            this.audio.uiSelect();
+            this.openCareer();
+          },
+        },
         {
           id: 'surf',
           label: 'Free Surf',
@@ -158,12 +180,48 @@ export class MainGameScene implements GameScene {
     this.audio.music?.play();
   }
 
-  private beginRun(): void {
+  private beginRun(levelId: string | null = null): void {
     this.menu?.dispose();
     this.menu = null;
+    this.careerMenu?.dispose();
+    this.careerMenu = null;
+    this.levelId = levelId;
+    if (levelId) {
+      const lvl = getLevel(levelId);
+      const bi = this.beaches.findIndex((b) => b.id === lvl.beach);
+      if (bi >= 0) this.beachIndex = bi;
+      this.waveFt = lvl.waveFt;
+      this.freeSurf = false;
+    }
     this.startRide(false);
     this.flow = 'ride';
     this.ride!.onEnd = () => this.showResults();
+  }
+
+  private openCareer(): void {
+    this.flow = 'menu';
+    this.menu?.dispose();
+    this.menu = null;
+    const items: MenuItem[] = listLevels().map((lvl) => {
+      const unlocked = this.career.isUnlocked(lvl.id);
+      const done = (this.career.data.completedGoals[lvl.id] ?? []).length;
+      const best = this.career.data.bestScores[lvl.id];
+      return {
+        id: lvl.id,
+        label: `${getBeach(lvl.beach).name} · ${lvl.name}`,
+        value: () => (unlocked ? `${done}/${lvl.goals.length} goals${best ? ` · best ${best.toLocaleString('en-US')}` : ''}` : 'locked'),
+        disabled: !unlocked,
+        onSelect: () => {
+          this.audio.uiSelect();
+          this.beginRun(lvl.id);
+        },
+      };
+    });
+    items.push({ id: 'back', label: 'Back to the boat', onSelect: () => this.openMenu() });
+    this.careerMenu?.dispose();
+    this.careerMenu = new MenuScreen(this.ctx.uiRoot, 'CAREER · WORLD MAP', items, 'Complete the ★ required goal to unlock the next spots · optional goals give boards and stat boosts');
+    this.careerMenu.prime(this.lastInput);
+    this.careerMenu.onBack = () => this.openMenu();
   }
 
   private showResults(): void {
@@ -171,11 +229,24 @@ export class MainGameScene implements GameScene {
     const run = this.ride.run;
     this.flow = 'results';
     const beach = this.beaches[this.beachIndex]!;
+    const goalRows: ResultRow[] = [];
+    let title = 'SESSION OVER';
+    if (this.ride.level && this.ride.goals) {
+      const lvl = this.ride.level;
+      const tracker = this.ride.goals;
+      const completed = tracker.progress.filter((p) => p.done).map((p) => ({ goalId: p.goal.id, reward: p.goal.reward, required: p.goal.required }));
+      const out = this.career.recordRun(lvl.id, run.score, completed, lvl.unlocks);
+      for (const p of tracker.progress) goalRows.push({ label: `${p.goal.required ? '★ ' : ''}${p.label}`, value: p.done ? 'DONE' : 'missed', ok: p.done });
+      for (const nl of out.newLevels) goalRows.push({ label: 'Unlocked', value: `${getBeach(getLevel(nl).beach).name} · ${getLevel(nl).name}`, ok: true });
+      for (const rw of out.newRewards) goalRows.push({ label: 'Reward', value: rw.replace(':', ' · '), ok: true });
+      title = tracker.requiredDone ? 'LEVEL CLEARED' : 'HEAT OVER';
+    }
     this.results = new ResultsScreen(
       this.ctx.uiRoot,
-      'SESSION OVER',
+      title,
       run.score.toLocaleString('en-US'),
       [
+        ...goalRows,
         { label: 'Beach', value: `${beach.name} · ${this.waveFt} ft` },
         { label: 'Best chain', value: run.bestChain.toLocaleString('en-US') },
         { label: 'Air points', value: run.bySection.air.toLocaleString('en-US') },
@@ -268,6 +339,7 @@ export class MainGameScene implements GameScene {
       case 'menu':
         this.ride?.step(dt);
         this.menu?.update(inp, dt);
+        this.careerMenu?.update(inp, dt);
         break;
       case 'ride': {
         const pausePressed = inp.pause && !this.prevPause;
