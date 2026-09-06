@@ -1,0 +1,30 @@
+{
+  "id": "cove",
+  "name": "Frigid Cove",
+  "region": "Antarctic Peninsula",
+  "breakDirection": "right",
+  "hollowness": 0.5,
+  "breakSpeed": 7.5,
+  "faceAspect": 1.4,
+  "tube": true,
+  "sections": {
+    "rate": 1.2,
+    "severity": 0.35,
+    "doubleUp": false
+  },
+  "hazards": [
+    "ice",
+    "turtle"
+  ],
+  "look": {
+    "sky": "night",
+    "waterDeep": "#071e33",
+    "waterShallow": "#2a8fa8",
+    "sunAzimuthDeg": 160,
+    "sunElevationDeg": 22,
+    "landmarks": [
+      "aurora",
+      "icebergs"
+    ]
+  }
+}

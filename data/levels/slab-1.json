@@ -1,0 +1,35 @@
+{
+  "id": "slab-1",
+  "beach": "slab",
+  "name": "Top Two",
+  "order": 9,
+  "waveFt": 12,
+  "seconds": 180,
+  "intro": "Heavy slab left. Contest heats judged hard; place second or better.",
+  "unlocks": [
+    "slab-2"
+  ],
+  "goals": [
+    {
+      "id": "contest",
+      "type": "contest",
+      "place": 2,
+      "opponentTop": 45000,
+      "required": true
+    },
+    {
+      "id": "tube",
+      "type": "sectionScore",
+      "section": "tube",
+      "target": 25000,
+      "reward": "stat:balance"
+    },
+    {
+      "id": "air",
+      "type": "sectionScore",
+      "section": "air",
+      "target": 25000,
+      "reward": "stat:air"
+    }
+  ]
+}

@@ -58,9 +58,9 @@ export function morphBroken(p: ProfileParams): ProfileParams {
   if (b <= 0) return p;
   return {
     ...p,
-    H: p.H * lerp(1, 0.48, b),
-    phi: lerp(p.phi, Math.PI * 0.62, b),
-    aspect: lerp(p.aspect, 2.4, b),
+    H: p.H * lerp(1, 0.55, b),
+    phi: lerp(p.phi, Math.PI * 0.66, b),
+    aspect: lerp(p.aspect, 2.0, b),
     lipThickness: lerp(p.lipThickness, 0.9, b),
   };
 }

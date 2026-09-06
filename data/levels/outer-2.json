@@ -1,0 +1,32 @@
+{
+  "id": "outer-2",
+  "beach": "outer",
+  "name": "Cover Shot",
+  "order": 12,
+  "waveFt": 25,
+  "seconds": 180,
+  "intro": "One frame, one special trick, ten thousand points. Then bring the whole session home.",
+  "unlocks": [],
+  "goals": [
+    {
+      "id": "photo",
+      "type": "photo",
+      "target": 10000,
+      "shots": 3,
+      "mode": "best",
+      "special": true,
+      "required": true
+    },
+    {
+      "id": "score",
+      "type": "score",
+      "target": 250000
+    },
+    {
+      "id": "special",
+      "type": "specialTime",
+      "seconds": 40,
+      "reward": "board:ultimate"
+    }
+  ]
+}

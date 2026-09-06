@@ -1,0 +1,29 @@
+{
+  "id": "pointbreak",
+  "name": "Cape Point",
+  "region": "New South Wales, Australia",
+  "breakDirection": "right",
+  "hollowness": 0.25,
+  "breakSpeed": 6.2,
+  "faceAspect": 1.6,
+  "tube": true,
+  "sections": {
+    "rate": 0.7,
+    "severity": 0.15,
+    "doubleUp": false
+  },
+  "hazards": [
+    "windsurfer",
+    "kayak"
+  ],
+  "look": {
+    "sky": "evening",
+    "waterDeep": "#0d4a63",
+    "waterShallow": "#48c9b8",
+    "sunAzimuthDeg": 250,
+    "sunElevationDeg": 18,
+    "landmarks": [
+      "headland"
+    ]
+  }
+}

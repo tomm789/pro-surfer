@@ -1,0 +1,33 @@
+{
+  "id": "sandbar-3",
+  "beach": "sandbar",
+  "name": "Photo Shoot",
+  "order": 3,
+  "waveFt": 7,
+  "seconds": 180,
+  "intro": "Three photo ops. Be mid-trick on the third beep and landing when the shutter fires.",
+  "unlocks": [
+    "reefpass-1"
+  ],
+  "goals": [
+    {
+      "id": "photo",
+      "type": "photo",
+      "target": 2000,
+      "shots": 3,
+      "mode": "sum",
+      "required": true
+    },
+    {
+      "id": "score",
+      "type": "score",
+      "target": 20000
+    },
+    {
+      "id": "special",
+      "type": "specialTime",
+      "seconds": 8,
+      "reward": "stat:balance"
+    }
+  ]
+}

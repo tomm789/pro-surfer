@@ -1,16 +1,42 @@
 {
   "id": "sandbar-2",
   "beach": "sandbar",
-  "name": "Link It Up",
+  "name": "Diving Blocks",
   "order": 2,
-  "waveFt": 9,
+  "waveFt": 8,
   "seconds": 180,
-  "intro": "Fill the special meter with face tricks, then link air and face into one chain before you cash in.",
-  "unlocks": ["reefpass-2"],
+  "intro": "Icons drop in on the left. Clear the bottom one with a trick of its type before the stack fills.",
+  "unlocks": [
+    "sandbar-3"
+  ],
   "goals": [
-    { "id": "special", "type": "specialTime", "seconds": 8, "required": true },
-    { "id": "score", "type": "score", "target": 20000 },
-    { "id": "nowipe", "type": "noWipeout", "seconds": 60, "score": 15000, "reward": "stat:balance" },
-    { "id": "learn", "type": "learnTrick", "trick": "shoveItOllie", "count": 3, "reward": "trick:shoveItOllie" }
+    {
+      "id": "icons",
+      "type": "icons",
+      "count": 10,
+      "score": 15000,
+      "required": true
+    },
+    {
+      "id": "gromlocal",
+      "type": "gromLocal",
+      "grom": 25000,
+      "local": 50000
+    },
+    {
+      "id": "pier",
+      "type": "objects",
+      "object": "pier",
+      "action": "jump",
+      "count": 1,
+      "reward": "suit:sunset"
+    },
+    {
+      "id": "learn",
+      "type": "learnTrick",
+      "trick": "shoveItOllie",
+      "count": 3,
+      "reward": "trick:shoveItOllie"
+    }
   ]
 }

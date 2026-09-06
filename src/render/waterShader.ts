@@ -134,12 +134,21 @@ void main() {
   float spec = pow(ndh, 420.0) * 0.9 + pow(ndh, 60.0) * 0.14;
   col += uSunColor * spec * (1.0 - vFoam * 0.7) * (1.0 - tubeDark);
 
-  // foam / whitewater: bright, rough, near-unlit
-  float fn = fbm(vWorldPos.xz * 0.9 + vec2(uTime * 0.6, -uTime * 0.35)) * 0.8 + fbm(vWorldPos.xz * 3.1 - vec2(uTime * 0.4)) * 0.45;
-  float foam = clamp(vFoam * (0.35 + 1.1 * fn), 0.0, 1.0);
-  foam = smoothstep(0.18, 0.75, foam);
-  vec3 foamCol = uFoamColor * (0.72 + 0.28 * ndl) * (1.0 - tubeDark * 0.5);
+  // foam / whitewater: turbulent multi-scale coverage with holes and bright crests, streaked along the crest
+  vec2 fx = vec2(vWorldPos.x * 0.45, vWorldPos.z) ;
+  float big = fbm(fx * 0.22 + vec2(uTime * 0.25, -uTime * 0.18));
+  float mid = fbm(fx * 0.9 + vec2(-uTime * 0.5, uTime * 0.3));
+  float fine = fbm(vWorldPos.xz * 4.5 - vec2(uTime * 0.9, uTime * 0.6));
+  float turb = big * 0.5 + mid * 0.35 + fine * 0.15;
+  float cover = vFoam * (0.25 + 1.25 * turb);
+  float foam = smoothstep(0.42, 0.78, cover);
+  float holes = smoothstep(0.55, 0.9, vFoam) * (1.0 - smoothstep(0.3, 0.55, mid)); // dark water showing through
+  vec3 foamDark = mix(uDeepColor, uShallowColor, 0.5) * 0.85;
+  vec3 foamCol = uFoamColor * (0.66 + 0.34 * ndl) * (0.85 + 0.3 * fine) * (1.0 - tubeDark * 0.5);
+  foamCol = mix(foamCol, foamDark, holes * 0.55);
   col = mix(col, foamCol, foam);
+  // crumbling lip edge keeps a thin bright feather
+  col += vec3(0.08) * smoothstep(0.85, 1.0, h) * vFoam;
 
   // spray haze at the lip crest (slight lightening)
   col += vec3(0.05) * smoothstep(0.9, 1.0, h) * (1.0 - vTube);

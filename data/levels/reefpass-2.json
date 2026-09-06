@@ -2,15 +2,40 @@
   "id": "reefpass-2",
   "beach": "reefpass",
   "name": "Rotations",
-  "order": 4,
+  "order": 7,
   "waveFt": 11,
   "seconds": 180,
   "intro": "Bigger sets. Load the jump on the way up, spin, and land at the mirror angle.",
-  "unlocks": [],
+  "unlocks": [
+    "outer-1"
+  ],
   "goals": [
-    { "id": "rot", "type": "rotation", "degrees": 540, "count": 3, "required": true },
-    { "id": "score", "type": "score", "target": 70000 },
-    { "id": "gromlocal", "type": "gromLocal", "grom": 75000, "local": 150000, "reward": "board:step-up" },
-    { "id": "special", "type": "specialTime", "seconds": 20, "reward": "stat:speed" }
+    {
+      "id": "rot",
+      "type": "rotation",
+      "degrees": 540,
+      "count": 3,
+      "required": true
+    },
+    {
+      "id": "score",
+      "type": "score",
+      "target": 70000
+    },
+    {
+      "id": "gromlocal",
+      "type": "gromLocal",
+      "grom": 75000,
+      "local": 150000,
+      "reward": "board:step-up"
+    },
+    {
+      "id": "jets",
+      "type": "objects",
+      "object": "jetski",
+      "action": "jump",
+      "count": 2,
+      "reward": "suit:reef"
+    }
   ]
 }

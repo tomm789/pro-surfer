@@ -19,9 +19,9 @@ export const GoalSchema = z.discriminatedUnion('type', [
   z.object({ id: z.string(), type: z.literal('learnTrick'), trick: z.string(), count: z.number().int().default(3), required: z.boolean().default(false), reward: z.string().optional(), label: z.string().optional() }),
   z.object({ id: z.string(), type: z.literal('sectionSurvival'), count: z.number().int(), required: z.boolean().default(false), reward: z.string().optional(), label: z.string().optional() }),
   z.object({ id: z.string(), type: z.literal('tubeTime'), seconds: z.number(), required: z.boolean().default(false), reward: z.string().optional(), label: z.string().optional() }),
-  z.object({ id: z.string(), type: z.literal('icons'), count: z.number().int(), score: z.number().default(0), required: z.boolean().default(false), reward: z.string().optional(), label: z.string().optional() }),
+  z.object({ id: z.string(), type: z.literal('icons'), count: z.number().int(), score: z.number().default(0), hints: z.boolean().default(true), required: z.boolean().default(false), reward: z.string().optional(), label: z.string().optional() }),
   z.object({ id: z.string(), type: z.literal('photo'), target: z.number(), shots: z.number().int().default(3), mode: z.enum(['sum', 'best']).default('sum'), special: z.boolean().default(false), required: z.boolean().default(false), reward: z.string().optional(), label: z.string().optional() }),
-  z.object({ id: z.string(), type: z.literal('contest'), place: z.number().int(), required: z.boolean().default(false), reward: z.string().optional(), label: z.string().optional() }),
+  z.object({ id: z.string(), type: z.literal('contest'), place: z.number().int(), opponentTop: z.number().default(20000), required: z.boolean().default(false), reward: z.string().optional(), label: z.string().optional() }),
   z.object({ id: z.string(), type: z.literal('objects'), object: z.string(), action: z.enum(['spray', 'splash', 'smash', 'jump']), count: z.number().int(), required: z.boolean().default(false), reward: z.string().optional(), label: z.string().optional() }),
 ]);
 

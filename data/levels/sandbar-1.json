@@ -6,11 +6,38 @@
   "waveFt": 7,
   "seconds": 180,
   "intro": "Small, friendly walls. Pump for speed, launch off the lip, land nose-down.",
-  "unlocks": ["sandbar-2", "reefpass-1"],
+  "unlocks": [
+    "sandbar-2",
+    "pointbreak-1"
+  ],
   "goals": [
-    { "id": "score", "type": "score", "target": 10000, "required": true },
-    { "id": "gromlocal", "type": "gromLocal", "grom": 12500, "local": 25000, "reward": "board:fish" },
-    { "id": "air", "type": "sectionScore", "section": "air", "target": 5000, "reward": "stat:air" },
-    { "id": "rot", "type": "rotation", "degrees": 360, "count": 2, "reward": "stat:spin" }
+    {
+      "id": "score",
+      "type": "score",
+      "target": 10000,
+      "required": true
+    },
+    {
+      "id": "gromlocal",
+      "type": "gromLocal",
+      "grom": 12500,
+      "local": 25000,
+      "reward": "board:fish"
+    },
+    {
+      "id": "air",
+      "type": "sectionScore",
+      "section": "air",
+      "target": 5000,
+      "reward": "stat:air"
+    },
+    {
+      "id": "tubers",
+      "type": "objects",
+      "object": "tuber",
+      "action": "splash",
+      "count": 3,
+      "reward": "stat:spin"
+    }
   ]
 }

@@ -67,20 +67,26 @@ describe('goal tracker', () => {
     r.step(2);
     expect(r.done).toContain('score');
     expect(r.done).toContain('air');
-    expect(r.done).toContain('rot');
+    expect(r.done).toContain('gromlocal');
     expect(r.goals.requiredDone).toBe(true);
     expect(r.goals.hudLines().length).toBe(4);
+    const rot = rig('pointbreak-1');
+    rot.riderEvents.emit('land', { rating: 'perfect', errorRad: 0, fakie: false, spins180: 2, u: 0, v: 0, airTime: 1, speed: 8 });
+    rot.riderEvents.emit('land', { rating: 'sloppy', errorRad: 0, fakie: false, spins180: 3, u: 0, v: 0, airTime: 1, speed: 8 });
+    rot.step(1);
+    expect(rot.done).toContain('rot');
   });
 
   it('special time and learn-a-trick goals', () => {
-    const r = rig('sandbar-2');
+    const r = rig('sandbar-3');
     for (const id of ['snap', 'rebound', 'gouge', 'tailChuck', 'laybackSlide', 'revertCutback']) r.land(id, 'face');
     expect(r.run.meter.isYellow).toBe(true);
     r.step(60 * 9);
     expect(r.done).toContain('special');
-    for (let i = 0; i < 3; i++) r.land('shoveItOllie', 'face');
-    r.step(1);
-    expect(r.done).toContain('learn');
+    const l = rig('sandbar-2');
+    for (let i = 0; i < 3; i++) l.land('shoveItOllie', 'face');
+    l.step(1);
+    expect(l.done).toContain('learn');
   });
 
   it('section survival counts sections passed without a wipeout', () => {
@@ -110,11 +116,11 @@ describe('career save', () => {
       { goalId: 'score', required: true },
       { goalId: 'air', required: false, reward: 'stat:air' },
     ], lvl.unlocks);
-    expect(out.newLevels).toEqual(['sandbar-2', 'reefpass-1']);
+    expect(out.newLevels).toEqual(['sandbar-2', 'pointbreak-1']);
     expect(out.newRewards).toEqual(['stat:air']);
     expect(save.data.stats.air).toBeCloseTo(0.1);
     const again = new CareerSave({ getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => void mem.set(k, v) });
-    expect(again.isUnlocked('reefpass-1')).toBe(true);
+    expect(again.isUnlocked('pointbreak-1')).toBe(true);
     expect(again.isGoalDone('sandbar-1', 'air')).toBe(true);
     expect(again.data.bestScores['sandbar-1']).toBe(31000);
   });

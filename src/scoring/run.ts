@@ -188,6 +188,25 @@ export class RunController {
     if (this.overrun && !this.meter.isYellow && !this.chain.open) this.end('time');
   }
 
+  /** Contest heats: new clock, fresh meter/chain, score carries on. */
+  resetHeat(seconds: number): void {
+    this.bank(false);
+    this.clock = seconds;
+    this.clockRunning = true;
+    this.overrun = false;
+    this.ended = false;
+    this.meter.reset();
+    this.rideSeconds = 0;
+    this.tubeActive = false;
+    this.floaterActive = false;
+  }
+
+  /** Flat bonus (icon chains, secrets). */
+  addBonus(points: number): void {
+    this.score += points;
+    this.events.emit('scoreChanged', { total: this.score });
+  }
+
   end(reason: 'time' | 'ended'): void {
     if (this.ended) return;
     this.bank(false);

@@ -21,7 +21,7 @@ export interface RiderStats {
   balance: number;
 }
 
-export type WipeoutReason = 'curl' | 'bogged' | 'over-the-back' | 'bad-landing' | 'caught-prone' | 'tube-balance' | 'closeout' | 'timeout' | 'exit';
+export type WipeoutReason = 'curl' | 'bogged' | 'over-the-back' | 'bad-landing' | 'caught-prone' | 'tube-balance' | 'closeout' | 'timeout' | 'exit' | 'hazard';
 
 export interface RiderEvents extends Record<string, unknown> {
   stand: { u: number; v: number };
@@ -582,6 +582,19 @@ export class RiderSim {
       this.setState('prone');
       this.events.emit('respawn', { u: this.u });
     }
+  }
+
+  /** Reposition prone ahead of the curl (new heat / retry) without a wipeout penalty. */
+  respawn(): void {
+    const R = this.tuning.rider;
+    this.u = this.wave.curlU + this.wave.params.breakSpeed * R.respawnAheadSeconds;
+    this.v = R.respawnV;
+    this.heading = 0;
+    this.speed = 0;
+    this.fakie = false;
+    this.jumpLoad = 0;
+    this.setState('prone');
+    this.events.emit('respawn', { u: this.u });
   }
 
   // ───────────────────────────── queries ─────────────────────────────

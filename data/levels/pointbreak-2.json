@@ -1,0 +1,34 @@
+{
+  "id": "pointbreak-2",
+  "beach": "pointbreak",
+  "name": "Get Ranked",
+  "order": 5,
+  "waveFt": 9,
+  "seconds": 180,
+  "intro": "A three-heat contest. Your best two waves per heat count. Place third or better.",
+  "unlocks": [
+    "reefpass-2"
+  ],
+  "goals": [
+    {
+      "id": "contest",
+      "type": "contest",
+      "place": 3,
+      "opponentTop": 18000,
+      "required": true
+    },
+    {
+      "id": "rot",
+      "type": "rotation",
+      "degrees": 360,
+      "count": 2
+    },
+    {
+      "id": "face",
+      "type": "sectionScore",
+      "section": "face",
+      "target": 10000,
+      "reward": "stat:speed"
+    }
+  ]
+}

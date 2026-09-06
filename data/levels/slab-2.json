@@ -1,0 +1,37 @@
+{
+  "id": "slab-2",
+  "beach": "slab",
+  "name": "Sliding Blocks",
+  "order": 10,
+  "waveFt": 13,
+  "seconds": 180,
+  "intro": "Seventeen icons and seventy thousand points. Link everything while the meter flashes.",
+  "unlocks": [
+    "outer-1"
+  ],
+  "goals": [
+    {
+      "id": "icons",
+      "type": "icons",
+      "count": 17,
+      "score": 70000,
+      "hints": false,
+      "required": true
+    },
+    {
+      "id": "gromlocal",
+      "type": "gromLocal",
+      "grom": 75000,
+      "local": 150000,
+      "reward": "board:pintail"
+    },
+    {
+      "id": "spongers",
+      "type": "objects",
+      "object": "sponger",
+      "action": "smash",
+      "count": 3,
+      "reward": "suit:slab"
+    }
+  ]
+}

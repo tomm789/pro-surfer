@@ -2,15 +2,39 @@
   "id": "reefpass-1",
   "beach": "reefpass",
   "name": "Shacked",
-  "order": 3,
+  "order": 6,
   "waveFt": 9,
   "seconds": 180,
   "intro": "A hollow reef left. Stall in the pocket to pull into the barrel, keep the marker centred, and spit out clean.",
-  "unlocks": ["reefpass-2"],
+  "unlocks": [
+    "reefpass-2",
+    "slab-1"
+  ],
   "goals": [
-    { "id": "tube", "type": "sectionScore", "section": "tube", "target": 8000, "required": true },
-    { "id": "tubetime", "type": "tubeTime", "seconds": 12, "reward": "stat:balance" },
-    { "id": "score", "type": "score", "target": 30000 },
-    { "id": "sections", "type": "sectionSurvival", "count": 3, "reward": "board:gun" }
+    {
+      "id": "tube",
+      "type": "sectionScore",
+      "section": "tube",
+      "target": 8000,
+      "required": true
+    },
+    {
+      "id": "tubetime",
+      "type": "tubeTime",
+      "seconds": 12,
+      "reward": "stat:balance"
+    },
+    {
+      "id": "gromlocal",
+      "type": "gromLocal",
+      "grom": 40000,
+      "local": 80000
+    },
+    {
+      "id": "sections",
+      "type": "sectionSurvival",
+      "count": 3,
+      "reward": "board:gun"
+    }
   ]
 }

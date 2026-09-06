@@ -286,7 +286,7 @@ export function waveParamsFromBeach(
     throwLength: tuning.throwLength ?? Math.max(7, heightMetres * 3.6),
     collapseLength: tuning.collapseLength ?? Math.max(5, heightMetres * 2.5),
     warnSeconds: tuning.warnSeconds,
-    sectionAheadMin: 18,
-    sectionAheadMax: 42,
+    sectionAheadMin: 28,
+    sectionAheadMax: 55,
   };
 }

@@ -26,6 +26,10 @@ export interface HudState {
   debug: string;
   flash: string;
   hazard: boolean;
+  /** Icon stack bottom-first, or null when not an icon level. */
+  icons: ('air' | 'face' | 'tube' | 'special')[] | null;
+  iconHint: string;
+  photo: { phase: 'idle' | 'countdown' | 'flash'; beep: number; beeps: number; value: number } | null;
 }
 
 const CSS = `
@@ -72,6 +76,26 @@ const CSS = `
 .hud .bal .depth{position:absolute;left:28px;top:0;font-size:12px;font-weight:800;color:#ffe27a;white-space:nowrap}
 .hud .bl{position:absolute;left:24px;bottom:22px;font-size:12px;font-weight:600;color:#bfe9ff;opacity:.85;white-space:pre}
 .hud .dbg{position:absolute;left:24px;bottom:60px;font:11px/1.4 ui-monospace,Menlo,monospace;color:#cfe;white-space:pre;opacity:.9}
+.hud .icons{position:absolute;left:24px;top:38%;display:flex;flex-direction:column-reverse;gap:6px;align-items:center}
+.hud .icons .ic{width:34px;height:34px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 2px 3px rgba(0,0,0,.6))}
+.hud .icons .ic.air{width:0;height:0;border-left:19px solid transparent;border-right:19px solid transparent;border-bottom:34px solid #3ef0a0}
+.hud .icons .ic.face{background:#b36bff;border-radius:5px}
+.hud .icons .ic.tube{background:#ff4d4d;border-radius:50%}
+.hud .icons .ic.special{background:#ffe27a;transform:rotate(45deg);width:26px;height:26px;margin:4px}
+.hud .icons .ic.bottom{outline:3px solid #fff;outline-offset:2px}
+.hud .icons .ic.air.bottom{outline:none;filter:drop-shadow(0 0 6px #fff)}
+.hud .iconhint{position:absolute;left:24px;top:calc(38% + 60px);width:170px;font-size:12px;font-weight:700;color:#dff3ff;text-align:center;line-height:1.3}
+.hud .vf{position:absolute;left:50%;top:50%;width:46%;height:52%;transform:translate(-50%,-50%);opacity:0;pointer-events:none}
+.hud .vf.show{opacity:1}
+.hud .vf .c{position:absolute;width:44px;height:44px;border:4px solid #fff;filter:drop-shadow(0 2px 3px rgba(0,0,0,.6))}
+.hud .vf .tl{left:0;top:0;border-right:none;border-bottom:none}.hud .vf .tr{right:0;top:0;border-left:none;border-bottom:none}
+.hud .vf .bl{left:0;bottom:0;border-right:none;border-top:none}.hud .vf .br{right:0;bottom:0;border-left:none;border-top:none}
+.hud .vf .beeps{position:absolute;left:50%;bottom:-34px;transform:translateX(-50%);display:flex;gap:10px}
+.hud .vf .beeps span{width:14px;height:14px;border-radius:50%;border:2px solid #fff;background:transparent}
+.hud .vf .beeps span.on{background:#ffe27a}
+.hud .vf .label{position:absolute;left:50%;top:-30px;transform:translateX(-50%);font-size:16px;font-weight:900;letter-spacing:3px;color:#ffe27a}
+.hud .vf.flash{background:rgba(255,255,255,.75);animation:vfflash .5s ease-out forwards}
+@keyframes vfflash{0%{background:rgba(255,255,255,.9)}100%{background:rgba(255,255,255,0)}}
 `;
 
 function el(parent: HTMLElement, cls: string, text = ''): HTMLDivElement {
@@ -107,6 +131,12 @@ export class Hud {
   private balDepth: HTMLDivElement;
   private hint: HTMLDivElement;
   private dbg: HTMLDivElement;
+  private icons: HTMLDivElement;
+  private iconHint: HTMLDivElement;
+  private vf: HTMLDivElement;
+  private vfBeeps: HTMLSpanElement[] = [];
+  private vfLabel: HTMLDivElement;
+  private lastIconsKey = '';
   private bankTimer = 0;
   private ratingTimer = 0;
   private lastScore = -1;
@@ -152,6 +182,17 @@ export class Hud {
     this.balDepth = el(this.bal, 'depth', '');
     this.hint = el(this.root, 'bl', '');
     this.dbg = el(this.root, 'dbg', '');
+    this.icons = el(this.root, 'icons');
+    this.iconHint = el(this.root, 'iconhint', '');
+    this.vf = el(this.root, 'vf');
+    for (const c of ['tl', 'tr', 'bl', 'br']) el(this.vf, `c ${c}`);
+    this.vfLabel = el(this.vf, 'label', 'PHOTO');
+    const beeps = el(this.vf, 'beeps');
+    for (let i = 0; i < 4; i++) {
+      const sp = document.createElement('span');
+      beeps.appendChild(sp);
+      this.vfBeeps.push(sp);
+    }
   }
 
   /** Show a landing rating or short message in the middle of the screen. */
@@ -245,6 +286,20 @@ export class Hud {
     } else this.bal.className = 'bal';
     this.hint.textContent = s.hint;
     this.dbg.textContent = s.debug;
+    // icon stack
+    const key = s.icons ? s.icons.join(',') : '';
+    if (key !== this.lastIconsKey) {
+      this.lastIconsKey = key;
+      this.icons.innerHTML = '';
+      if (s.icons) s.icons.forEach((t, i) => el(this.icons, `ic ${t}${i === 0 ? ' bottom' : ''}`));
+    }
+    this.iconHint.textContent = s.icons && s.icons.length ? s.iconHint : '';
+    // viewfinder
+    if (s.photo && s.photo.phase !== 'idle') {
+      this.vf.className = 'vf show' + (s.photo.phase === 'flash' ? ' flash' : '');
+      this.vfBeeps.forEach((b, i) => (b.className = i < s.photo!.beep ? 'on' : ''));
+      this.vfLabel.textContent = s.photo.phase === 'flash' ? (s.photo.value > 0 ? `PHOTO +${s.photo.value.toLocaleString('en-US')}` : 'MISSED') : 'PHOTO';
+    } else this.vf.className = 'vf';
   }
 
   dispose(): void {

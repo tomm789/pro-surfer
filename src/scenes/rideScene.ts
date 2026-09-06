@@ -21,6 +21,12 @@ import { Hud, type HudState } from '@/ui/hud';
 import type { AudioManager } from '@/audio/audio';
 import { GoalTracker, type GoalEvents, type Level } from '@/goals/goals';
 import { getLevel } from '@/goals/levels';
+import { IconStack } from '@/goals/icons';
+import { PhotoDirector } from '@/goals/photo';
+import { Contest } from '@/goals/contest';
+import { ObjectField, type ObjectEvents, type ObjectKind } from '@/world/objects';
+import { ObjectViews } from '@/render/objectViews';
+import type { Trick } from '@/tricks/catalogue';
 
 /**
  * Playable ride: wave + rider + tricks + scoring + HUD.
@@ -40,6 +46,16 @@ export class RideScene implements GameScene {
   run!: RunController;
   level: Level | null = null;
   goals: GoalTracker | null = null;
+  icons: IconStack | null = null;
+  photo: PhotoDirector | null = null;
+  contest: Contest | null = null;
+  objects!: ObjectField;
+  readonly objectEvents = new EventBus<ObjectEvents>();
+  private objectViews = new ObjectViews();
+  private lastTrickLanded: Trick | null = null;
+  private lastTrickTime = -10;
+  private lastLandTime = -10;
+  private objTmp = new THREE.Vector3();
   private waveMesh!: WaveMesh;
   private env!: Environment;
   private uniforms!: ReturnType<typeof createWaterUniforms>;
@@ -90,16 +106,51 @@ export class RideScene implements GameScene {
     const stats = statsRaw ? (JSON.parse(statsRaw) as { spin: number; speed: number; air: number; balance: number }) : { spin: 0.5, speed: 0.5, air: 0.5, balance: 0.5 };
     this.rider = new RiderSim(this.wave, TUNING, stats, this.events, undefined, new Rng(ctx.seed + 7));
     this.tricks = new TrickSystem(this.rider, TUNING, this.trickEvents, this.events);
+    const contestGoal = this.level?.goals.find((g) => g.type === 'contest');
+    if (contestGoal && contestGoal.type === 'contest') {
+      this.contest = new Contest(
+        { heats: TUNING.clock.heatCount, heatSeconds: TUNING.clock.heatSeconds, opponentTop: contestGoal.opponentTop, opponents: 3, names: ['Mako', 'Reef', 'Juno'] },
+        new Rng(ctx.seed + 13),
+      );
+    }
     this.run = new RunController(TUNING, this.rider, this.events, this.tricks, this.trickEvents, {
       untimed: !this.level && ctx.params.get('free') === '1',
-      seconds: this.level ? this.level.seconds : ctx.params.has('seconds') ? Number(ctx.params.get('seconds')) : undefined,
+      seconds: this.contest ? this.contest.heatSeconds : this.level ? this.level.seconds : ctx.params.has('seconds') ? Number(ctx.params.get('seconds')) : undefined,
     });
+    const knownKinds: ObjectKind[] = ['windsurfer', 'tuber', 'kayak', 'jetski', 'sponger', 'turtle', 'rafter', 'pier', 'ice'];
+    const hazardKinds = beach.hazards.filter((h): h is ObjectKind => (knownKinds as string[]).includes(h));
+    this.objects = new ObjectField(this.attract || ctx.params.get('objects') === '0' ? [] : hazardKinds, new Rng(ctx.seed + 17), this.objectEvents, this.level ? 20 : 28);
     if (this.level) {
-      this.goals = new GoalTracker(
-        this.level,
-        { run: this.run, riderEvents: this.events, trickEvents: this.trickEvents, runEvents: this.run.events, wave: this.wave, riderU: () => this.rider.u, riderState: () => this.rider.state },
-        this.goalEvents,
-      );
+      const iconsGoal = this.level.goals.find((g) => g.type === 'icons');
+      if (iconsGoal && iconsGoal.type === 'icons') {
+        this.icons = new IconStack(
+          { stackSize: TUNING.icons.stackSize, dropIntervalSeconds: TUNING.icons.dropIntervalSeconds * (iconsGoal.count > 15 ? 0.8 : 1), weights: { air: 1, face: 1, tube: beach.tube ? 0.6 : 0, special: 0.35 }, total: 0 },
+          new Rng(ctx.seed + 11),
+        );
+      }
+      const photoGoal = this.level.goals.find((g) => g.type === 'photo');
+      if (photoGoal && photoGoal.type === 'photo') {
+        this.photo = new PhotoDirector({ shots: photoGoal.shots, beeps: TUNING.photo.beeps, beepIntervalSeconds: TUNING.photo.beepIntervalSeconds, runSeconds: this.level.seconds });
+      }
+      const goalCtx = {
+        run: this.run,
+        riderEvents: this.events,
+        trickEvents: this.trickEvents,
+        runEvents: this.run.events,
+        wave: this.wave,
+        riderU: () => this.rider.u,
+        riderState: () => this.rider.state,
+        extra: {
+          iconsCleared: () => this.icons?.cleared ?? 0,
+          iconsFailed: () => this.icons?.failed ?? false,
+          photoTotal: () => this.photo?.total ?? 0,
+          photoBest: () => this.photo?.best ?? 0,
+          photoSpecialBest: () => this.photo?.bestSpecial ?? 0,
+          contestPlace: () => (this.contest && this.contest.finished ? this.contest.place() : null),
+          objectHits: (o: string, a: string) => this.objects.count(o, a),
+        },
+      };
+      this.goals = new GoalTracker(this.level, goalCtx, this.goalEvents);
     }
 
     this.uniforms = createWaterUniforms(beach);
@@ -111,6 +162,7 @@ export class RideScene implements GameScene {
     this.scene.add(this.riderView.group);
     this.spray = new SpraySystem();
     this.scene.add(this.spray.points);
+    this.scene.add(this.objectViews.group);
     this.cam = new ChaseCamera(TUNING);
     const camParam = ctx.params.get('cam');
     if (camParam === 'wide' || camParam === 'close') this.cam.mode = camParam;
@@ -150,6 +202,9 @@ export class RideScene implements GameScene {
       debug: '',
       flash: '',
       hazard: false,
+      icons: null,
+      iconHint: '',
+      photo: null,
     };
     this.wireEvents();
   }
@@ -206,6 +261,47 @@ export class RideScene implements GameScene {
       if (!this.headless && b.cashedIn) this.inputManager.rumble(0.6, 0.3, 180);
     });
     this.run.events.on('chainLost', (b) => this.log(`chainLost ${b.total}`));
+    this.trickEvents.on('trickLand', (e) => {
+      this.lastTrickLanded = e.trick;
+      this.lastTrickTime = this.time;
+      if (this.icons && this.icons.onTrick(e.trick, this.run.meter.isYellow)) {
+        this.hud.flash('ICON', 'perfect', 0.6);
+        this.audio?.uiSelect();
+        if (this.icons.takeChainBonus(TUNING.scoring.iconChainCount)) {
+          this.run.addBonus(TUNING.scoring.iconChainBonus);
+          this.hud.showBank(TUNING.scoring.iconChainBonus, false);
+          this.hud.flash('ICON CHAIN BONUS', 'info', 1.5);
+        }
+      }
+    });
+    this.events.on('land', () => (this.lastLandTime = this.time));
+    this.objectEvents.on('objectHit', (e) => {
+      const verb = { spray: 'Sprayed', splash: 'Splashed', smash: 'Smashed', jump: 'Jumped' }[e.action];
+      const base = TUNING.scoring.base.envSecret;
+      const trick: Trick = {
+        id: `env-${e.object.kind}-${e.action}`,
+        name: `${verb} ${e.object.kind}`,
+        section: 'face',
+        input: { kind: 'dir', button: 'carve', direction: 'up' },
+        base: e.action === 'jump' || e.action === 'smash' ? base[1] : base[0],
+        meter: 0.1,
+        duration: 0,
+        special: false,
+      };
+      this.trickEvents.emit('trickLand', { trick, section: 'face', aheadOfCurl: this.rider.aheadOfCurl, rotation: 0, atLip: false });
+      this.hud.flash(`${verb.toUpperCase()} ${e.object.kind.toUpperCase()}!`, 'info', 1.0);
+      this.audio?.land();
+      this.log(`objectHit ${e.object.kind} ${e.action}`);
+    });
+    this.objectEvents.on('objectCollision', (e) => {
+      this.log(`objectCollision ${e.object.kind}`);
+      this.rider.wipeout('hazard');
+    });
+    if (this.contest) {
+      this.run.events.on('chainBanked', (b) => this.contest!.addToWave(b.total));
+      this.events.on('wipeout', () => this.contest!.endWave());
+      this.events.on('stand', () => this.contest!.endWave());
+    }
     this.goalEvents.on('goalDone', (e) => {
       this.hud.flash(`GOAL · ${e.progress.label}`, 'perfect', 1.8);
       this.audio?.bank(50000);
@@ -220,7 +316,18 @@ export class RideScene implements GameScene {
       this.log('meterYellow');
     });
     this.run.events.on('runEnd', (e) => {
-      this.hud.flash(`TIME · ${e.score.toLocaleString('en-US')}`, 'info', 6);
+      if (this.contest && e.reason === 'time') {
+        const heat = this.contest.endHeat();
+        this.log(`heatEnd ${this.contest.heat} score=${heat.score} place=${this.contest.place()}`);
+        if (!this.contest.finished) {
+          this.hud.flash(`HEAT ${this.contest.heat} DONE · ${heat.score.toLocaleString('en-US')} · HEAT ${this.contest.heat + 1} OF ${this.contest.totalHeats}`, 'info', 3);
+          this.run.resetHeat(this.contest.heatSeconds);
+          this.rider.respawn();
+          this.audio?.meterFull();
+          return;
+        }
+        this.hud.flash(`CONTEST OVER · ${['1ST', '2ND', '3RD', '4TH'][this.contest.place() - 1]}`, 'info', 6);
+      } else this.hud.flash(`TIME · ${e.score.toLocaleString('en-US')}`, 'info', 6);
       this.log(`runEnd ${e.score}`);
       this.audio?.bank(e.score);
       if (this.onEnd) setTimeout(() => this.onEnd?.(), 1800);
@@ -313,6 +420,34 @@ export class RideScene implements GameScene {
     }
     this.run.step(dt, cashIn || this.cashInEdge);
     this.cashInEdge = false;
+    if (!this.run.ended) {
+      const r = this.rider;
+      this.icons?.step(dt, this.run.meter.isYellow);
+      if (this.photo) {
+        const cue = this.photo.step(dt, this.run.time, () => ({
+          trick: this.tricks.activeTrick ?? this.tricks.pendingAirTricks[this.tricks.pendingAirTricks.length - 1] ?? (this.time - this.lastTrickTime < 0.6 ? this.lastTrickLanded : null),
+          multiplier: this.run.chain.multiplier,
+          inTube: r.state === 'tube',
+          tubeDepth: r.tube.depth,
+          inAir: r.state === 'air',
+          landedRecently: this.time - this.lastLandTime < 0.5,
+          wipedOut: r.state === 'wipeout',
+        }));
+        if (cue === 'beep') this.audio?.countdownBeep(this.photo.beep >= TUNING.photo.beeps - 1);
+        else if (cue === 'shutter') {
+          this.audio?.shutter();
+          this.log(`photo ${this.photo.lastValue}`);
+        }
+      }
+      const carving = (input.carve || Math.abs(r.heading) > 0.5) && r.state === 'face';
+      this.objects.step(dt, r.u, r.v, r.state === 'air', carving, this.time - this.lastLandTime < 0.15, this.wave.curlU, r.speed);
+      const near = this.objects.nearestAhead(r.u, 30);
+      if (input.objectCam && near) {
+        this.wave.position(near.u, near.v, this.sprayTmp);
+        this.cam.objectTarget = this.objTmp.set(this.sprayTmp.x, this.sprayTmp.y + 0.8, this.sprayTmp.z);
+      } else this.cam.objectTarget = null;
+      this.hudState.hazard = !!near && near.u - r.u > 0;
+    }
     if (this.goals && !this.run.ended) this.goals.update(dt);
     this.warnHook?.();
     if (this.audio && !this.attract) {
@@ -385,7 +520,19 @@ export class RideScene implements GameScene {
     s.chainBase = this.run.chain.base;
     s.chainMultiplier = this.run.chain.multiplier;
     s.waveHeightFt = this.waveFt;
-    if (this.goals && this.level) s.objective = [`${this.level.name.toUpperCase()}`, ...this.goals.hudLines()];
+    if (this.goals && this.level) {
+      s.objective = [`${this.level.name.toUpperCase()}`, ...this.goals.hudLines()];
+      if (this.contest) {
+        s.objective.push('', `HEAT ${Math.min(this.contest.heat + 1, this.contest.totalHeats)} / ${this.contest.totalHeats} · best two waves`);
+        for (const row of this.contest.standings()) s.objective.push(`${row.you ? '▶ ' : '   '}${row.name.padEnd(6)} ${row.total.toLocaleString('en-US')}`);
+      }
+    }
+    s.icons = this.icons ? [...this.icons.stack] : null;
+    const iconsGoal = this.level?.goals.find((g) => g.type === 'icons');
+    const showHints = iconsGoal && iconsGoal.type === 'icons' ? iconsGoal.hints : true;
+    const bottom = this.icons?.stack[0];
+    s.iconHint = bottom && showHints ? { air: 'air: grab or flip in the air', face: 'face: e.g. double-tap carve', tube: 'tube: slide + direction in the barrel', special: 'special: needs the flashing meter' }[bottom] : '';
+    s.photo = this.photo ? { phase: this.photo.phase, beep: this.photo.beep, beeps: TUNING.photo.beeps, value: this.photo.lastValue } : null;
     s.sectionsAhead = this.wave.sections.map((sec) => sec.u - r.u).sort((a, b) => a - b).slice(0, 4);
     s.warning = this.wave.warnings().some((w) => w.u > r.u && w.u - r.u < 45);
     s.balance = r.state === 'tube' ? r.tube.balance : null;
@@ -409,6 +556,7 @@ export class RideScene implements GameScene {
     this.waveMesh.update(this.wave);
     this.uniforms.uAmpMask0.value = (this.waveMesh.zMin + this.waveMesh.zMax) / 2;
     this.uniforms.uAmpMask1.value = (this.waveMesh.zMax - this.waveMesh.zMin) / 2 - 8;
+    this.objectViews.update(this.objects, this.wave);
     this.env.update(this.cam.camera.position, this.riderView.group.position);
     this.renderer.render(this.scene, this.cam.camera);
   }
@@ -420,6 +568,7 @@ export class RideScene implements GameScene {
   dispose(): void {
     this.waveMesh.dispose();
     this.spray.dispose();
+    this.objectViews.dispose();
     this.env.dispose();
     this.inputManager.detach(window);
     this.hud.dispose();

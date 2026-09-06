@@ -1,0 +1,20 @@
+{
+  "id": "outer",
+  "name": "Outer Bank",
+  "region": "100 miles offshore",
+  "breakDirection": "right",
+  "hollowness": 0.45,
+  "breakSpeed": 9.5,
+  "faceAspect": 1.5,
+  "tube": false,
+  "sections": { "rate": 2.0, "severity": 0.7, "doubleUp": true },
+  "hazards": ["jetski"],
+  "look": {
+    "sky": "cloudy",
+    "waterDeep": "#0a3550",
+    "waterShallow": "#3aa9a3",
+    "sunAzimuthDeg": 200,
+    "sunElevationDeg": 30,
+    "landmarks": []
+  }
+}

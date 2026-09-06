@@ -1,0 +1,41 @@
+{
+  "id": "outer-1",
+  "beach": "outer",
+  "name": "Face Off",
+  "order": 11,
+  "waveFt": 22,
+  "seconds": 180,
+  "intro": "Open-ocean giants. No tube here, just walls. Forty thousand face points.",
+  "unlocks": [
+    "outer-2"
+  ],
+  "goals": [
+    {
+      "id": "face",
+      "type": "sectionScore",
+      "section": "face",
+      "target": 40000,
+      "required": true
+    },
+    {
+      "id": "score",
+      "type": "score",
+      "target": 200000
+    },
+    {
+      "id": "nowipe",
+      "type": "noWipeout",
+      "seconds": 90,
+      "score": 100000,
+      "reward": "stat:speed"
+    },
+    {
+      "id": "jets",
+      "type": "objects",
+      "object": "jetski",
+      "action": "splash",
+      "count": 3,
+      "reward": "board:rhino"
+    }
+  ]
+}

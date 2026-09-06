@@ -1,0 +1,37 @@
+{
+  "id": "cove-1",
+  "beach": "cove",
+  "name": "Frigid Blocks",
+  "order": 8,
+  "waveFt": 14,
+  "seconds": 180,
+  "intro": "Night session under the aurora. Icons fall faster here; smash the ice if you dare.",
+  "unlocks": [
+    "slab-1"
+  ],
+  "goals": [
+    {
+      "id": "icons",
+      "type": "icons",
+      "count": 15,
+      "score": 25000,
+      "hints": false,
+      "required": true
+    },
+    {
+      "id": "nowipe",
+      "type": "noWipeout",
+      "seconds": 60,
+      "score": 25000,
+      "reward": "stat:balance"
+    },
+    {
+      "id": "ice",
+      "type": "objects",
+      "object": "ice",
+      "action": "jump",
+      "count": 3,
+      "reward": "suit:polar"
+    }
+  ]
+}

@@ -17,6 +17,8 @@ export class ChaseCamera {
   private desiredLook = new THREE.Vector3();
   private initialised = false;
   private tmp = new THREE.Vector3();
+  /** When set, the camera keeps its position but looks at this point (object cam). */
+  objectTarget: THREE.Vector3 | null = null;
 
   constructor(
     private tuning: Tuning,
@@ -82,7 +84,7 @@ export class ChaseCamera {
 
   private apply(): void {
     this.camera.position.copy(this.pos);
-    this.tmp.copy(this.look);
+    this.tmp.copy(this.objectTarget ?? this.look);
     this.camera.lookAt(this.tmp);
   }
 }

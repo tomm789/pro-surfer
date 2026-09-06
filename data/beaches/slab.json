@@ -1,0 +1,20 @@
+{
+  "id": "slab",
+  "name": "Slab Reef",
+  "region": "North Shore, Hawaii",
+  "breakDirection": "left",
+  "hollowness": 0.9,
+  "breakSpeed": 8.0,
+  "faceAspect": 1.15,
+  "tube": true,
+  "sections": { "rate": 2.5, "severity": 0.5, "doubleUp": true },
+  "hazards": ["sponger"],
+  "look": {
+    "sky": "day",
+    "waterDeep": "#083f63",
+    "waterShallow": "#2fc4c8",
+    "sunAzimuthDeg": 215,
+    "sunElevationDeg": 48,
+    "landmarks": ["palms"]
+  }
+}

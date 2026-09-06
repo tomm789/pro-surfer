@@ -1,0 +1,42 @@
+{
+  "id": "pointbreak-1",
+  "beach": "pointbreak",
+  "name": "Air Assault",
+  "order": 4,
+  "waveFt": 8,
+  "seconds": 180,
+  "intro": "A long, easy right point. Spray the windsurfers on your way past and rack up air points.",
+  "unlocks": [
+    "pointbreak-2",
+    "cove-1"
+  ],
+  "goals": [
+    {
+      "id": "air",
+      "type": "sectionScore",
+      "section": "air",
+      "target": 5000,
+      "required": true
+    },
+    {
+      "id": "score",
+      "type": "score",
+      "target": 10000
+    },
+    {
+      "id": "wind",
+      "type": "objects",
+      "object": "windsurfer",
+      "action": "spray",
+      "count": 3,
+      "reward": "board:twin"
+    },
+    {
+      "id": "rot",
+      "type": "rotation",
+      "degrees": 360,
+      "count": 2,
+      "reward": "stat:spin"
+    }
+  ]
+}
