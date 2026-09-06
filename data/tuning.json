@@ -8,7 +8,7 @@
     "runSeconds": 180,
     "heatSeconds": 90,
     "heatCount": 3,
-    "wipeoutPenaltySeconds": 6,
+    "wipeoutPenaltySeconds": 3,
     "overrunUntilMeterDrains": true
   },
   "wave": {
@@ -88,10 +88,11 @@
     "depthRate": 3.0,
     "balanceDriftBase": 0.22,
     "balanceDriftDepthScale": 0.9,
+    "balanceDriftTimeScale": 0.2,
     "balanceStatScale": 0.5,
     "railGrabDriftFactor": 0.5,
-    "balanceTapImpulse": 0.32,
-    "balanceHoldRate": 1.1,
+    "balanceTapImpulse": 0.12,
+    "balanceHoldRate": 0.8,
     "balanceFailThreshold": 1.0,
     "driftFlipMinSeconds": 0.8,
     "driftFlipMaxSeconds": 2.0,

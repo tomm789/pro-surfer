@@ -384,7 +384,8 @@ export class RiderSim {
       t.driftDir = t.driftDir === 1 ? -1 : 1;
       t.driftTimer = this.rng.range(T.driftFlipMinSeconds, T.driftFlipMaxSeconds);
     }
-    let drift = (T.balanceDriftBase + T.balanceDriftDepthScale * t.depth) * (1 - this.stats.balance * T.balanceStatScale);
+    // drift grows with depth and, slowly, with time in the barrel (design doc §14: 6 s comfortable, 15 s expert)
+    let drift = (T.balanceDriftBase + T.balanceDriftDepthScale * t.depth) * (1 + t.seconds * T.balanceDriftTimeScale) * (1 - this.stats.balance * T.balanceStatScale);
     if (input.grab) drift *= T.railGrabDriftFactor;
     t.balance += t.driftDir * drift * dt;
     const stickDir = input.stickX > 0.5 ? 1 : input.stickX < -0.5 ? -1 : 0;

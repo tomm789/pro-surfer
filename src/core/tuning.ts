@@ -86,6 +86,7 @@ export const TuningSchema = z.object({
     depthRate: z.number().nonnegative(),
     balanceDriftBase: z.number().nonnegative(),
     balanceDriftDepthScale: z.number().nonnegative(),
+    balanceDriftTimeScale: z.number().nonnegative(),
     balanceStatScale: z.number().nonnegative(),
     railGrabDriftFactor: z.number().min(0).max(1),
     balanceTapImpulse: z.number().nonnegative(),
