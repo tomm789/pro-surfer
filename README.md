@@ -15,7 +15,7 @@ npm run dev
 
 Open <http://localhost:5173> in Chrome. Press any key or gamepad button on the boot screen (this unlocks audio and the controller). Press F on the menu for fullscreen.
 
-A hosted build also deploys on every push to <https://line-up-surf.vercel.app> (the project currently has Vercel login protection turned on).
+Or just play the hosted build: <https://line-up-surf.vercel.app> (redeploys on every push, no install).
 
 ## Controls
 
