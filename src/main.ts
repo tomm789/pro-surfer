@@ -2,8 +2,10 @@ import { App } from '@/app/app';
 import { PlaceholderScene } from '@/scenes/placeholder';
 import { WaveScene } from '@/scenes/waveScene';
 import { RideScene } from '@/scenes/rideScene';
+import { MainGameScene } from '@/scenes/gameScene';
 
 const app = new App({
+  game: () => new MainGameScene(),
   placeholder: () => new PlaceholderScene(),
   wave: () => new WaveScene(),
   ride: () => new RideScene(),

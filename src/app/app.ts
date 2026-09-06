@@ -52,8 +52,8 @@ export class App {
   }
 
   async start(): Promise<void> {
-    const name = this.params.get('scene') ?? 'placeholder';
-    const factory = this.registry[name] ?? this.registry['placeholder'];
+    const name = this.params.get('scene') ?? 'game';
+    const factory = this.registry[name] ?? this.registry['game'] ?? this.registry['placeholder'];
     if (!factory) throw new Error(`No scenes registered`);
     const seed = Number(this.params.get('seed') ?? 1) || 1;
     this.scene = factory();

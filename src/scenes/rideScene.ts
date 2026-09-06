@@ -17,6 +17,7 @@ import { InputManager } from '@/input/inputManager';
 import { TrickSystem, type TrickEvents } from '@/tricks/executor';
 import { RunController } from '@/scoring/run';
 import { Hud, type HudState } from '@/ui/hud';
+import type { AudioManager } from '@/audio/audio';
 
 /**
  * Playable ride: wave + rider + tricks + scoring + HUD.
@@ -32,7 +33,7 @@ export class RideScene implements GameScene {
   private events = new EventBus<RiderEvents>();
   private trickEvents = new EventBus<TrickEvents>();
   private tricks!: TrickSystem;
-  private run!: RunController;
+  run!: RunController;
   private waveMesh!: WaveMesh;
   private env!: Environment;
   private uniforms!: ReturnType<typeof createWaterUniforms>;
@@ -41,6 +42,7 @@ export class RideScene implements GameScene {
   private hud!: Hud;
   private inputManager = new InputManager(TUNING.input.deadzone);
   private headlessInput: RiderInput | null = null;
+  private warnHook: (() => void) | null = null;
   private inputScript: { t: number; input: Partial<RiderInput> }[] = [];
   private eventLog: string[] = [];
   private pose = makePose();
@@ -55,6 +57,14 @@ export class RideScene implements GameScene {
   private cashInEdge = false;
   private headless = false;
   private hudState!: HudState;
+  /** Optional audio manager (set by the game shell before init). */
+  audio: AudioManager | null = null;
+  /** Attract mode: runs behind the menus with an automatic rider and no HUD. */
+  attract = false;
+  /** Called once when the run ends. */
+  onEnd: (() => void) | null = null;
+  private externalInput: Readonly<RiderInput> | null = null;
+  private attractTimer = 0;
 
   init(ctx: SceneContext): void {
     this.renderer = ctx.renderer;
@@ -84,7 +94,7 @@ export class RideScene implements GameScene {
     if (ctx.params.get('cam') === 'wide') this.cam.mode = 'wide';
     this.rider.pose(this.pose);
     this.cam.snapTo(this.pose, this.wave.params.direction);
-    if (!ctx.headless) this.inputManager.attach(window);
+    if (!ctx.headless && !this.attract && !ctx.params.has('hosted')) this.inputManager.attach(window);
     window.addEventListener('lineup:input', (e) => {
       const d = (e as CustomEvent).detail as Partial<RiderInput> | { script: { t: number; input: Partial<RiderInput> }[] } | null;
       if (d && 'script' in d && Array.isArray(d.script)) {
@@ -93,7 +103,9 @@ export class RideScene implements GameScene {
       } else this.headlessInput = d ? { ...cloneInput(NEUTRAL_INPUT), ...(d as Partial<RiderInput>) } : null;
     });
 
+    this.attract = this.attract || ctx.params.get('attract') === '1';
     this.hud = new Hud(ctx.uiRoot);
+    if (this.attract) this.hud.root.style.display = 'none';
     this.hudState = {
       score: 0,
       clock: this.run.clock,
@@ -165,13 +177,71 @@ export class RideScene implements GameScene {
     this.run.events.on('runEnd', (e) => {
       this.hud.flash(`TIME · ${e.score.toLocaleString('en-US')}`, 'info', 6);
       this.log(`runEnd ${e.score}`);
+      this.audio?.bank(e.score);
+      if (this.onEnd) setTimeout(() => this.onEnd?.(), 1800);
     });
+    // sounds
+    const a = () => this.audio;
+    this.events.on('launch', () => a()?.launch());
+    this.events.on('land', (e) => {
+      a()?.land();
+      if (e.rating === 'perfect') a()?.perfect();
+      else if (e.rating === 'sloppy') a()?.sloppy();
+    });
+    this.events.on('wipeout', (e) => {
+      if (e.reason !== 'exit') a()?.wipeout();
+    });
+    this.events.on('tubeEnter', () => a()?.tubeEnter());
+    this.events.on('tubeExit', (e) => {
+      if (e.spit) a()?.spit();
+    });
+    this.trickEvents.on('trickLand', (e) => (e.trick.special ? a()?.special() : a()?.trick()));
+    this.run.events.on('chainBanked', (b) => a()?.bank(b.total));
+    this.run.events.on('meterYellow', () => a()?.meterFull());
+    let warned = 0;
+    this.run.events.on('scoreChanged', () => undefined);
+    this.events.on('respawn', () => (warned = 0));
+    this.warnHook = () => {
+      const w = this.wave.warnings().length;
+      if (w > warned) a()?.warning();
+      warned = w;
+    };
+  }
+
+  /** The game shell feeds input here (so menus can swallow it). */
+  setInput(input: Readonly<RiderInput>): void {
+    this.externalInput = input;
+  }
+
+  get runController(): RunController {
+    return this.run;
   }
 
   private currentInput(): Readonly<RiderInput> {
     if (this.headlessInput) return this.headlessInput;
+    if (this.attract) return this.attractInput();
+    if (this.externalInput) return this.externalInput;
     if (this.headless) return NEUTRAL_INPUT;
     return this.lastFrameInput;
+  }
+
+  /** A gentle automatic surfer for the menu background: trims, pumps and occasionally climbs. */
+  private attractInput(): Readonly<RiderInput> {
+    const t = this.time;
+    const dir = this.wave.params.direction;
+    const phase = t % 9;
+    const inp = cloneInput(NEUTRAL_INPUT);
+    if (this.rider.state === 'prone') inp.stand = this.rider.stateTime > 0.8;
+    else if (phase < 5) inp.stickY = 0.7;
+    else if (phase < 6.2) {
+      inp.stickX = dir * 0.9;
+      inp.stickY = 0.2;
+    } else if (phase < 7.4) {
+      inp.stickX = -dir * 0.8;
+      inp.stickY = 0.6;
+      inp.carve = true;
+    } else inp.stickY = 0.4;
+    return inp;
   }
 
   step(dt: number): void {
@@ -189,6 +259,8 @@ export class RideScene implements GameScene {
     }
     const cashIn = input.cashIn && !this.prevCashIn;
     this.prevCashIn = input.cashIn;
+    if (input.cameraToggle && !this.prevCameraToggle) this.cam.mode = this.cam.mode === 'chase' ? 'wide' : 'chase';
+    this.prevCameraToggle = input.cameraToggle;
     if (!this.run.ended) {
       this.wave.step(dt, this.rider.state === 'wipeout' ? null : this.rider.u);
       this.rider.step(dt, input);
@@ -196,6 +268,14 @@ export class RideScene implements GameScene {
     }
     this.run.step(dt, cashIn || this.cashInEdge);
     this.cashInEdge = false;
+    this.warnHook?.();
+    if (this.audio && !this.attract) {
+      const r = this.rider;
+      const nearCurl = Math.max(0, 1 - Math.max(0, r.aheadOfCurl) / 12);
+      const ww = r.state === 'wipeout' ? 1 : r.state === 'floater' ? 0.8 : 0.35 + nearCurl * 0.5;
+      const spray = r.state === 'face' ? Math.min(1, r.speed / 14) * (0.4 + Math.abs(Math.sin(r.heading)) * 0.8) : r.state === 'tube' ? 0.5 : 0;
+      this.audio.ambience(ww, spray, r.state === 'tube' ? 1 : 0);
+    }
     this.rider.pose(this.pose);
     const speed01 = Math.min(1, this.rider.speed / TUNING.rider.maxSpeed);
     this.riderView.update(this.pose, this.rider.state, dt, speed01);
@@ -236,12 +316,7 @@ export class RideScene implements GameScene {
   }
 
   render(): void {
-    if (!this.headless) {
-      const inp = this.inputManager.poll();
-      if (inp.cameraToggle && !this.prevCameraToggle) this.cam.mode = this.cam.mode === 'chase' ? 'wide' : 'chase';
-      this.prevCameraToggle = inp.cameraToggle;
-      this.lastFrameInput = cloneInput(inp);
-    }
+    if (!this.headless && !this.attract && !this.externalInput) this.lastFrameInput = cloneInput(this.inputManager.poll());
     this.uniforms.uTime.value = this.time;
     this.waveMesh.update(this.wave);
     this.uniforms.uAmpMask0.value = (this.waveMesh.zMin + this.waveMesh.zMax) / 2;
