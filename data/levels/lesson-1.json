@@ -1,0 +1,16 @@
+{
+  "id": "lesson-1",
+  "beach": "sandbar",
+  "name": "Lesson 1 · Paddle, stand, pump",
+  "order": 101,
+  "lesson": true,
+  "waveFt": 6,
+  "seconds": 120,
+  "intro": "Welcome to the line-up. Paddle into the wave, stand up, and find speed.",
+  "unlocks": ["lesson-2"],
+  "goals": [
+    { "id": "stand", "type": "lesson", "skill": "stand", "count": 1, "required": true, "hint": "Paddle along the wave with ← → (stick), then press L or Y to stand as it lifts you" },
+    { "id": "speed", "type": "lesson", "skill": "speed", "value": 11, "required": true, "hint": "Hold ↑ (stick up) to pump. Pumping while dropping down the face gives the most speed" },
+    { "id": "ride", "type": "noWipeout", "seconds": 20, "score": 0, "required": true, "label": "Ride 20 s without wiping out", "hint": "Trim mid-face with a neutral stick. Stalling (↓) lets the whitewater catch you" }
+  ]
+}

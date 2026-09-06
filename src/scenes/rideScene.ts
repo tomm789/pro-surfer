@@ -159,6 +159,7 @@ export class RideScene implements GameScene {
         seconds: Number(ctx.params.get('seconds') ?? 180),
         goals: [{ id: 'icons', type: 'icons', count: 30, score: 0, hints: true, required: true }],
         unlocks: [],
+        lesson: false,
       };
     }
     const beach = getBeach(this.level?.beach ?? ctx.params.get('beach') ?? 'sandbar');
@@ -216,6 +217,7 @@ export class RideScene implements GameScene {
         riderU: () => this.rider.u,
         riderState: () => this.rider.state,
         extra: {
+          riderSpeed: () => this.rider.speed,
           iconsCleared: () => this.icons?.cleared ?? 0,
           iconsFailed: () => this.icons?.failed ?? false,
           photoTotal: () => this.photo?.total ?? 0,
@@ -267,6 +269,7 @@ export class RideScene implements GameScene {
     this.attract = this.attract || ctx.params.get('attract') === '1';
     this.hud = new Hud(ctx.uiRoot);
     if (this.attract) this.hud.root.style.display = 'none';
+    if (this.level?.intro && !this.replay && !this.attract) this.hud.flash(this.level.intro, 'info', 6);
     if (this.replay) {
       // TV replay: letterbox bars and a recording badge; the HUD sits inside the bars
       this.hud.root.style.top = '9%';
@@ -684,13 +687,16 @@ export class RideScene implements GameScene {
       s.debug = '';
       return;
     }
-    s.hint = this.controlsHint
-      ? this.controlsHint
-      : this.inputManager.gamepadName
-      ? `pad: ${this.inputManager.gamepadName.slice(0, 40)}`
-      : r.state === 'prone'
-        ? 'L / Y: stand up · ←→: paddle along the wave'
-        : 'arrows: turn · ↑ pump · ↓ stall (↓↓ super stall) · Space jump (hold, release at lip) · J carve · K grab · L slide/floater · Q/E spin · Enter cash in · Shift camera';
+    const lessonHint = this.goals?.activeHint() ?? null;
+    s.hint =
+      lessonHint ??
+      (this.controlsHint
+        ? this.controlsHint
+        : this.inputManager.gamepadName
+          ? `pad: ${this.inputManager.gamepadName.slice(0, 40)}`
+          : r.state === 'prone'
+            ? 'L / Y: stand up · ←→: paddle along the wave'
+            : 'arrows: turn · ↑ pump · ↓ stall (↓↓ super stall) · Space jump (hold, release at lip) · J carve · K grab · L slide/floater · Q/E spin · Enter cash in · Shift camera');
     s.debug = this.debug
       ? `state ${r.state}  speed ${r.speed.toFixed(1)}  v ${r.v.toFixed(2)}  ahead ${r.aheadOfCurl.toFixed(1)}  heading ${r.headingDeg.toFixed(0)}°  load ${(r.jumpLoad * 100).toFixed(0)}%\n` +
         `sections ${this.wave.sections.length}  yellow ${this.run.meter.totalYellowSeconds.toFixed(1)}s  best ${this.run.bestChain}\n` +

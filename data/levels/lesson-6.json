@@ -1,0 +1,15 @@
+{
+  "id": "lesson-6",
+  "beach": "reefpass",
+  "name": "Lesson 6 · The tube",
+  "order": 106,
+  "lesson": true,
+  "waveFt": 9,
+  "seconds": 150,
+  "intro": "This reef throws a proper barrel. Stall, get covered, stay balanced.",
+  "unlocks": ["lesson-7"],
+  "goals": [
+    { "id": "tube3", "type": "tubeTime", "seconds": 3, "required": true, "hint": "Stall with ↓ as the lip throws over you. Tap the stick against the balance marker; hold K (B) to grab the rail" },
+    { "id": "tube8", "type": "tubeTime", "seconds": 8, "required": true, "hint": "Deeper is worth more. ↓ goes deeper, ↑ or Space (A) drives you out" }
+  ]
+}

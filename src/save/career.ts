@@ -27,7 +27,7 @@ const memoryStorage: Storage = {
 export function defaultCareer(): CareerData {
   return {
     version: 1,
-    unlockedLevels: ['sandbar-1'],
+    unlockedLevels: ['sandbar-1', 'lesson-1'],
     completedGoals: {},
     rewards: [],
     bestScores: {},

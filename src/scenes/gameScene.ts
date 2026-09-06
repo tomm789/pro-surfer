@@ -15,7 +15,7 @@ import { SplitScene, type SplitMode } from './splitScene';
 import { KEYMAP_P1, KEYMAP_P2, KEYMAP_SOLO, keymapHint } from '@/input/keymaps';
 import { timeAttackSeconds } from '@/modes/push';
 import { CareerSave } from '@/save/career';
-import { listLevels, getLevel } from '@/goals/levels';
+import { listLevels, listLessons, getLevel } from '@/goals/levels';
 import { getBeach } from '@/world/beaches';
 import { listRiders, listBoards, getRider, getBoard, effectiveStats, statBar } from '@/world/roster';
 import { TrickBookScreen } from '@/ui/trickBook';
@@ -341,6 +341,15 @@ export class MainGameScene implements GameScene {
           },
         },
         {
+          id: 'lessons',
+          label: 'Lessons',
+          value: () => `${listLessons().filter((l) => this.lessonDone(l.id)).length}/${listLessons().length}`,
+          onSelect: () => {
+            this.audio.uiSelect();
+            this.openLessons();
+          },
+        },
+        {
           id: 'surf',
           label: 'Free Surf',
           onSelect: () => {
@@ -572,6 +581,37 @@ export class MainGameScene implements GameScene {
     this.ride!.onEnd = () => this.showResults();
   }
 
+  private lessonDone(id: string): boolean {
+    const l = getLevel(id);
+    return l.goals.filter((g) => g.required).every((g) => this.career.isGoalDone(id, g.id));
+  }
+
+  private openLessons(): void {
+    this.flow = 'menu';
+    this.menu?.dispose();
+    this.menu = null;
+    const lessons = listLessons();
+    const items: MenuItem[] = lessons.map((lvl, i) => {
+      const unlocked = i === 0 || this.career.isUnlocked(lvl.id) || this.lessonDone(lessons[i - 1]!.id);
+      const done = this.lessonDone(lvl.id);
+      return {
+        id: lvl.id,
+        label: lvl.name,
+        value: () => (done ? 'done ✓' : unlocked ? `${getBeach(lvl.beach).name} · ${lvl.waveFt} ft` : 'locked'),
+        disabled: !unlocked,
+        onSelect: () => {
+          this.audio.uiSelect();
+          this.beginRun(lvl.id);
+        },
+      };
+    });
+    items.push({ id: 'back', label: 'Back to the boat', onSelect: () => this.openMenu() });
+    this.careerMenu?.dispose();
+    this.careerMenu = new MenuScreen(this.ctx.uiRoot, 'LESSONS', items, 'Each lesson teaches one skill with on-screen hints · finish one to unlock the next');
+    this.careerMenu.prime(this.lastInput);
+    this.careerMenu.onBack = () => this.openMenu();
+  }
+
   private openCareer(): void {
     this.flow = 'menu';
     this.menu?.dispose();
@@ -657,7 +697,7 @@ export class MainGameScene implements GameScene {
       for (const p of tracker.progress) goalRows.push({ label: `${p.goal.required ? '★ ' : ''}${p.label}`, value: p.done ? 'DONE' : 'missed', ok: p.done });
       for (const nl of out.newLevels) goalRows.push({ label: 'Unlocked', value: `${getBeach(getLevel(nl).beach).name} · ${getLevel(nl).name}`, ok: true });
       for (const rw of out.newRewards) goalRows.push({ label: 'Reward', value: rw.replace(':', ' · '), ok: true });
-      title = tracker.requiredDone ? 'LEVEL CLEARED' : 'HEAT OVER';
+      title = lvl.lesson ? (tracker.requiredDone ? 'LESSON COMPLETE' : 'KEEP PRACTISING') : tracker.requiredDone ? 'LEVEL CLEARED' : 'HEAT OVER';
     }
     const rec = this.ride.recording();
     this.results = new ResultsScreen(

@@ -51,7 +51,7 @@ Player 2 in split screen uses the left-hand cluster: WASD move, F jump, G carve,
 
 ## Modes
 
-Career (12 levels of goals with unlocks and stat rewards), Free Surf, Timed Run, Icon Challenge, split-screen Head to Head and Push, turn-based Time Attack, a Record Book, a Trick Book, and eight riders with eight boards.
+Lessons (seven short tutorials with on-screen hints, from standing up to the tube), Career (12 levels of goals with unlocks and stat rewards), Free Surf, Timed Run, Icon Challenge, split-screen Head to Head and Push, turn-based Time Attack, a Record Book, a Trick Book, a Scrapbook of photos, TV-style replays of your best chain after every run (press K or B during a replay to snap a photo), and eight riders with eight boards.
 
 ## Development
 

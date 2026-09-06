@@ -15,8 +15,14 @@ export function getLevel(id: string): Level {
   return l;
 }
 
+/** Career levels (the world map), in order. Lessons are listed separately. */
 export function listLevels(): Level[] {
-  return [...registry.values()].sort((a, b) => a.order - b.order);
+  return [...registry.values()].filter((l) => !l.lesson).sort((a, b) => a.order - b.order);
+}
+
+/** Tutorial lessons in order. */
+export function listLessons(): Level[] {
+  return [...registry.values()].filter((l) => l.lesson).sort((a, b) => a.order - b.order);
 }
 
 export function levelsForBeach(beachId: string): Level[] {
