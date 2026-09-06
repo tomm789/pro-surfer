@@ -147,7 +147,8 @@
     "multiplierCap": 30,
     "perfectBaseFactor": 1.1,
     "iconChainBonus": 10000,
-    "iconChainCount": 5
+    "iconChainCount": 5,
+    "idleBankSeconds": 4.0
   },
   "meter": {
     "fill": {
@@ -161,7 +162,8 @@
     "sloppyLanding": -0.15,
     "drainPerSecond": 0.08,
     "repeatDrain": 0.2,
-    "wipeoutResetsMeter": true
+    "wipeoutResetsMeter": true,
+    "greenDrainPerSecond": 0.03
   },
   "input": {
     "sequenceWindowMs": 600,

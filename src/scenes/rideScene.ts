@@ -15,10 +15,13 @@ import { RiderView } from '@/render/riderView';
 import { ChaseCamera } from '@/render/chaseCamera';
 import { InputManager } from '@/input/inputManager';
 import { TrickSystem, type TrickEvents } from '@/tricks/executor';
+import { RunController } from '@/scoring/run';
+import { Hud, type HudState } from '@/ui/hud';
 
 /**
- * M2 playable: wave + rider + chase camera + debug HUD.
- * URL params: beach=<id> ft=<n> seed=<n> auto=1 (stand automatically) cam=chase|wide
+ * Playable ride: wave + rider + tricks + scoring + HUD.
+ * URL params: beach=<id> ft=<n> seed=<n> auto=1 (stand automatically) cam=chase|wide assist=balance
+ *             free=1 (no clock) seconds=<n> debug=1
  */
 export class RideScene implements GameScene {
   readonly name = 'ride';
@@ -29,51 +32,47 @@ export class RideScene implements GameScene {
   private events = new EventBus<RiderEvents>();
   private trickEvents = new EventBus<TrickEvents>();
   private tricks!: TrickSystem;
-  private trickLine: string[] = [];
+  private run!: RunController;
   private waveMesh!: WaveMesh;
   private env!: Environment;
   private uniforms!: ReturnType<typeof createWaterUniforms>;
   private riderView!: RiderView;
   private cam!: ChaseCamera;
+  private hud!: Hud;
   private inputManager = new InputManager(TUNING.input.deadzone);
   private headlessInput: RiderInput | null = null;
-  /** Time-keyed input script for headless captures: at sim time ≥ t the input switches. */
   private inputScript: { t: number; input: Partial<RiderInput> }[] = [];
   private eventLog: string[] = [];
   private pose = makePose();
   private time = 0;
-  private hud!: HTMLElement;
-  private flash = '';
-  private flashT = 0;
   private auto = false;
   private assistBalance = false;
+  private debug = false;
+  private waveFt = 8;
   private lastFrameInput: Readonly<RiderInput> = NEUTRAL_INPUT;
   private prevCameraToggle = false;
+  private prevCashIn = false;
+  private cashInEdge = false;
   private headless = false;
+  private hudState!: HudState;
 
   init(ctx: SceneContext): void {
     this.renderer = ctx.renderer;
     this.headless = ctx.headless;
     const beach = getBeach(ctx.params.get('beach') ?? 'sandbar');
-    const ft = Number(ctx.params.get('ft') ?? 8);
+    this.waveFt = Number(ctx.params.get('ft') ?? 8);
     this.auto = ctx.params.get('auto') === '1';
     this.assistBalance = ctx.params.get('assist') === 'balance';
-    const params = waveParamsFromBeach(beach, waveFeetToMetres(ft), { warnSeconds: TUNING.wave.sectionWarnSeconds });
+    this.debug = ctx.params.get('debug') === '1';
+    const params = waveParamsFromBeach(beach, waveFeetToMetres(this.waveFt), { warnSeconds: TUNING.wave.sectionWarnSeconds });
     this.wave = new WaveModel(params, new Rng(ctx.seed), 0);
     this.rider = new RiderSim(this.wave, TUNING, { spin: 0.5, speed: 0.5, air: 0.5, balance: 0.5 }, this.events, undefined, new Rng(ctx.seed + 7));
     this.tricks = new TrickSystem(this.rider, TUNING, this.trickEvents, this.events);
-    this.trickEvents.on('trickLand', (e) => {
-      this.trickLine.push(e.trick.name);
-      if (this.trickLine.length > 8) this.trickLine.shift();
-      this.eventLog.push(`${this.time.toFixed(2)} trickLand ${e.trick.id}`);
+    this.run = new RunController(TUNING, this.rider, this.events, this.tricks, this.trickEvents, {
+      untimed: ctx.params.get('free') === '1',
+      seconds: ctx.params.has('seconds') ? Number(ctx.params.get('seconds')) : undefined,
     });
-    this.trickEvents.on('trickFail', (e) => this.eventLog.push(`${this.time.toFixed(2)} trickFail ${e.trick.id} ${e.reason}`));
-    this.trickEvents.on('specialLocked', (e) => this.setFlash(`${e.trick.name}: special meter not flashing`, 1.2));
-    this.trickEvents.on('exitMove', (e) => {
-      this.setFlash(`EXIT · ${e.trick.name}`, 1.5);
-      this.rider.wipeout('exit');
-    });
-    this.events.on('wipeout', () => (this.trickLine = []));
+
     this.uniforms = createWaterUniforms(beach);
     this.env = new Environment(beach, this.uniforms);
     this.scene.add(this.env.group);
@@ -93,24 +92,80 @@ export class RideScene implements GameScene {
         this.headlessInput = cloneInput(NEUTRAL_INPUT);
       } else this.headlessInput = d ? { ...cloneInput(NEUTRAL_INPUT), ...(d as Partial<RiderInput>) } : null;
     });
-    this.events.on('land', (e) => this.setFlash(e.rating === 'perfect' ? 'PERFECT' : e.rating === 'sloppy' ? 'SLOPPY' : 'WIPEOUT', 1.2));
-    this.events.on('wipeout', (e) => this.setFlash(`WIPEOUT · ${e.reason}`, 1.6));
-    this.events.on('launch', () => this.setFlash('AIR', 0.5));
-    for (const name of ['stand', 'launch', 'land', 'wipeout', 'respawn', 'tubeEnter', 'tubeExit', 'floaterStart', 'floaterEnd'] as const) {
-      this.events.on(name, (e) => {
-        this.eventLog.push(`${this.time.toFixed(2)} ${name} ${JSON.stringify(e)}`);
-        if (this.eventLog.length > 40) this.eventLog.shift();
-      });
-    }
-    this.hud = document.createElement('div');
-    this.hud.style.cssText =
-      'position:absolute;left:16px;top:12px;font:14px/1.5 ui-monospace,Menlo,monospace;color:#eaf6ff;text-shadow:0 1px 2px #000;white-space:pre;pointer-events:none';
-    ctx.uiRoot.appendChild(this.hud);
+
+    this.hud = new Hud(ctx.uiRoot);
+    this.hudState = {
+      score: 0,
+      clock: this.run.clock,
+      meter: 0,
+      meterState: 'empty',
+      specialTime: 0,
+      chainLabel: '',
+      chainBase: 0,
+      chainMultiplier: 0,
+      chainOpen: false,
+      objective: ['FREE SURF', `${beach.name} · ${this.waveFt} ft ${beach.breakDirection}`],
+      waveHeightFt: this.waveFt,
+      nextWaveFt: null,
+      sectionsAhead: [],
+      warning: false,
+      balance: null,
+      tubeDepth: 0,
+      tubeState: 'prone',
+      hint: '',
+      debug: '',
+      flash: '',
+      hazard: false,
+    };
+    this.wireEvents();
   }
 
-  private setFlash(text: string, seconds: number): void {
-    this.flash = text;
-    this.flashT = seconds;
+  private log(line: string): void {
+    this.eventLog.push(`${this.time.toFixed(2)} ${line}`);
+    if (this.eventLog.length > 60) this.eventLog.shift();
+  }
+
+  private wireEvents(): void {
+    this.events.on('land', (e) => {
+      if (e.rating === 'perfect') this.hud.flash('PERFECT', 'perfect');
+      else if (e.rating === 'sloppy') this.hud.flash('SLOPPY', 'sloppy');
+      this.log(`land ${e.rating} spins180=${e.spins180} air=${e.airTime.toFixed(2)}`);
+    });
+    this.events.on('wipeout', (e) => {
+      if (e.reason !== 'exit') this.hud.flash('WIPEOUT', 'wipeout', 1.4);
+      this.log(`wipeout ${e.reason}`);
+    });
+    this.events.on('launch', (e) => this.log(`launch power=${e.power.toFixed(2)} speed=${e.speed.toFixed(1)}`));
+    this.events.on('stand', () => this.log('stand'));
+    this.events.on('respawn', () => this.log('respawn'));
+    this.events.on('tubeEnter', (e) => this.log(`tubeEnter ${e.passive ? 'passive' : 'stall'}`));
+    this.events.on('tubeExit', (e) => {
+      this.log(`tubeExit ${e.seconds.toFixed(1)}s depth=${e.maxDepth.toFixed(2)} spit=${e.spit}`);
+      if (e.spit) this.hud.flash('SPIT!', 'info', 0.9);
+    });
+    this.events.on('floaterStart', () => this.log('floaterStart'));
+    this.events.on('floaterEnd', (e) => this.log(`floaterEnd ${e.overSection ? 'section' : 'face'}`));
+    this.trickEvents.on('trickLand', (e) => this.log(`trickLand ${e.trick.id}`));
+    this.trickEvents.on('trickFail', (e) => this.log(`trickFail ${e.trick.id} ${e.reason}`));
+    this.trickEvents.on('specialLocked', (e) => this.hud.flash(`${e.trick.name} needs the special meter`, 'info', 1.2));
+    this.trickEvents.on('exitMove', (e) => {
+      this.hud.flash(`EXIT · ${e.trick.name}`, 'info', 1.5);
+      this.rider.wipeout('exit');
+    });
+    this.run.events.on('chainBanked', (b) => {
+      this.hud.showBank(b.total, b.cashedIn);
+      this.log(`bank ${b.total} x${b.multiplier} ${b.cashedIn ? 'cash' : 'auto'} [${b.entries.map((x) => x.id).join('+')}]`);
+      if (!this.headless && b.cashedIn) this.inputManager.rumble(0.6, 0.3, 180);
+    });
+    this.run.events.on('chainLost', (b) => this.log(`chainLost ${b.total}`));
+    this.run.events.on('meterYellow', () => {
+      this.hud.flash('SPECIAL!', 'info', 0.8);
+      this.log('meterYellow');
+    });
+    this.run.events.on('runEnd', (e) => {
+      this.hud.flash(`TIME · ${e.score.toLocaleString('en-US')}`, 'info', 6);
+      this.log(`runEnd ${e.score}`);
+    });
   }
 
   private currentInput(): Readonly<RiderInput> {
@@ -128,26 +183,61 @@ export class RideScene implements GameScene {
     let input = this.currentInput();
     if (this.auto && this.rider.state === 'prone' && this.rider.stateTime > 0.8) input = { ...input, stand: true };
     if (this.assistBalance && this.rider.state === 'tube') {
-      // accessibility assist / capture helper: tap against the balance marker's drift
       const b = this.rider.tube.balance;
       const frame = Math.floor(this.time * 60);
       input = { ...input, stickX: Math.abs(b) > 0.08 && frame % 6 < 3 ? Math.sign(b) : 0 };
     }
-    this.wave.step(dt, this.rider.state === 'wipeout' ? null : this.rider.u);
-    this.rider.step(dt, input);
-    this.tricks.step(dt, input);
-    if (this.flashT > 0) this.flashT -= dt;
-    // camera and rider pose advance with sim time so headless captures and replays are exact
+    const cashIn = input.cashIn && !this.prevCashIn;
+    this.prevCashIn = input.cashIn;
+    if (!this.run.ended) {
+      this.wave.step(dt, this.rider.state === 'wipeout' ? null : this.rider.u);
+      this.rider.step(dt, input);
+      this.tricks.step(dt, input);
+    }
+    this.run.step(dt, cashIn || this.cashInEdge);
+    this.cashInEdge = false;
     this.rider.pose(this.pose);
     const speed01 = Math.min(1, this.rider.speed / TUNING.rider.maxSpeed);
     this.riderView.update(this.pose, this.rider.state, dt, speed01);
     this.cam.update(this.pose, this.wave.params.direction, this.rider.state, speed01, dt);
+    this.updateHudState();
+    this.hud.update(this.hudState, dt);
+  }
+
+  private updateHudState(): void {
+    const s = this.hudState;
+    const r = this.rider;
+    s.score = this.run.score;
+    s.clock = this.run.ended || this.run.clock === undefined ? this.run.clock : this.run.clock;
+    if (this.run['untimed' as keyof RunController]) s.clock = null;
+    s.meter = this.run.meter.value;
+    s.meterState = this.run.meter.state;
+    s.specialTime = this.run.meter.isYellow ? this.run.meter.yellowSeconds : 0;
+    s.chainOpen = this.run.chain.open;
+    s.chainLabel = this.run.chain.label();
+    s.chainBase = this.run.chain.base;
+    s.chainMultiplier = this.run.chain.multiplier;
+    s.waveHeightFt = this.waveFt;
+    s.sectionsAhead = this.wave.sections.map((sec) => sec.u - r.u).sort((a, b) => a - b).slice(0, 4);
+    s.warning = this.wave.warnings().some((w) => w.u > r.u && w.u - r.u < 45);
+    s.balance = r.state === 'tube' ? r.tube.balance : null;
+    s.tubeDepth = r.tube.depth;
+    s.tubeState = r.state;
+    s.hint = this.inputManager.gamepadName
+      ? `pad: ${this.inputManager.gamepadName.slice(0, 40)}`
+      : r.state === 'prone'
+        ? 'L / Y: stand up · ←→: paddle along the wave'
+        : 'arrows: turn · ↑ pump · ↓ stall (↓↓ super stall) · Space jump (hold, release at lip) · J carve · K grab · L slide/floater · Q/E spin · Enter cash in · Shift camera';
+    s.debug = this.debug
+      ? `state ${r.state}  speed ${r.speed.toFixed(1)}  v ${r.v.toFixed(2)}  ahead ${r.aheadOfCurl.toFixed(1)}  heading ${r.headingDeg.toFixed(0)}°  load ${(r.jumpLoad * 100).toFixed(0)}%\n` +
+        `sections ${this.wave.sections.length}  yellow ${this.run.meter.totalYellowSeconds.toFixed(1)}s  best ${this.run.bestChain}\n` +
+        this.eventLog.slice(-6).join('\n')
+      : '';
   }
 
   render(): void {
     if (!this.headless) {
       const inp = this.inputManager.poll();
-      // camera toggle on press
       if (inp.cameraToggle && !this.prevCameraToggle) this.cam.mode = this.cam.mode === 'chase' ? 'wide' : 'chase';
       this.prevCameraToggle = inp.cameraToggle;
       this.lastFrameInput = cloneInput(inp);
@@ -158,26 +248,6 @@ export class RideScene implements GameScene {
     this.uniforms.uAmpMask1.value = (this.waveMesh.zMax - this.waveMesh.zMin) / 2 - 8;
     this.env.update(this.cam.camera.position, this.riderView.group.position);
     this.renderer.render(this.scene, this.cam.camera);
-    this.updateHud();
-  }
-
-  private updateHud(): void {
-    const r = this.rider;
-    const lines = [
-      `state ${r.state}   speed ${r.speed.toFixed(1)} m/s   heading ${r.headingDeg.toFixed(0)}°`,
-      `u ${r.u.toFixed(1)}  v ${r.v.toFixed(2)}  ahead of curl ${r.aheadOfCurl.toFixed(1)} m  load ${(r.jumpLoad * 100).toFixed(0)}%`,
-      `sections ${this.wave.sections.length}  warnings ${this.wave.warnings().length}  wipeouts ${r.wipeouts}` +
-        (r.state === 'tube' ? `   TUBE depth ${(r.tube.depth * 100).toFixed(0)}%  balance ${r.tube.balance.toFixed(2)}  ${r.tube.seconds.toFixed(1)}s` : '') +
-        (r.state === 'floater' ? `   FLOATER ${r.floaterSeconds.toFixed(1)}s` : ''),
-      this.inputManager.gamepadName ? `pad: ${this.inputManager.gamepadName}` : 'keyboard: arrows/WASD move · Space jump · J carve · K grab · L slide/stand · Q/E spin',
-    ];
-    const pending = this.tricks.pendingAirTricks.map((t) => t.name);
-    const active = this.tricks.activeTrick?.name;
-    if (this.trickLine.length || pending.length || active) {
-      lines.push('', `tricks: ${this.trickLine.join(' + ')}${active ? `  [${active}…]` : ''}${pending.length ? `  (air: ${pending.join(' + ')})` : ''}`);
-    }
-    if (this.flashT > 0) lines.push('', `>>> ${this.flash} <<<`);
-    this.hud.textContent = lines.join('\n');
   }
 
   cameras(): THREE.PerspectiveCamera[] {
@@ -188,10 +258,10 @@ export class RideScene implements GameScene {
     this.waveMesh.dispose();
     this.env.dispose();
     this.inputManager.detach(window);
-    this.hud.remove();
+    this.hud.dispose();
   }
 
   debugState(): Record<string, unknown> {
-    return { t: this.time, curlU: this.wave.curlU, rider: this.rider.snapshot(), sections: this.wave.sections.length, events: this.eventLog };
+    return { t: this.time, curlU: this.wave.curlU, rider: this.rider.snapshot(), run: this.run.snapshot(), sections: this.wave.sections.length, events: this.eventLog };
   }
 }

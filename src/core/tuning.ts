@@ -129,6 +129,7 @@ export const TuningSchema = z.object({
     perfectBaseFactor: z.number(),
     iconChainBonus: z.number(),
     iconChainCount: z.number().int(),
+    idleBankSeconds: z.number().positive(),
   }),
   meter: z.object({
     fill: z.object({
@@ -141,6 +142,7 @@ export const TuningSchema = z.object({
     perfectLanding: z.number(),
     sloppyLanding: z.number(),
     drainPerSecond: z.number(),
+    greenDrainPerSecond: z.number(),
     repeatDrain: z.number(),
     wipeoutResetsMeter: z.boolean(),
   }),
