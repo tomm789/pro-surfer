@@ -103,6 +103,7 @@ Alternating presses = paddle strokes; the sticks work like arms. Left stick down
 
 ### In the air
 - `twist` is rotation. `rail` is the flip/tilt axis. `compression` is the tuck: crouching in the air spins you faster (conservation of angular momentum — pull in to spin, extend to slow), which is real and reads instantly.
+- **Grabs are shapes, not directions.** Hold a hand on the rail (Grab = back hand, Carve = front hand) and *where the feet are* says which grab it is: pull the front foot up and the nose comes to the hand (nose grab); pull the back foot up (tail grab); push both feet toe-side and the back hand finds the toe rail between them (indy); both heel-side is a melon, tucked hard it is a roast beef; feet twisted opposite ways under a hand is a shove-it. The full table is in §6. The shape has to hold for `stance.grabSettleSeconds` before it is read, and each press of a hand is one grab, so two grabs in one air means two presses.
 - Landing is judged on how well the board's yaw lines up with the direction of travel, as it is today. Compressing on touchdown absorbs it: a landing with the feet loaded is forgiving, a landing with the legs locked out is not.
 
 ### In the tube
@@ -118,12 +119,37 @@ Sticks are the body. Buttons are the hands and the discrete decisions.
 
 | Button | Does |
 |---|---|
-| Grab (B / K) | hand to the rail. In the air: a grab, which one depends on the stick direction. In the tube: rail grab, halves the drift. Paddling: duck dive. |
+| Grab (B / K) | the back hand to the rail. In the air: a grab, which one depends on the foot shape (table below). In the tube: rail grab, halves the drift. Paddling: duck dive. |
 | Slide (Y / L) | stand up from prone; unweighted slide/floater initiation. |
-| Carve (X / J) | commits the rail harder than the stick alone — the "dig in" modifier, a bottom-turn amplifier rather than a separate turn. |
+| Carve (X / J) | the front hand. On the face it commits the rail harder than the stick alone — the "dig in" modifier. In the air it is the front-hand grab and the flips (table below). |
 | Spin (LB / RB) | assists rotation for players who do not want to use `twist` for air rotation. Optional, and off in Pro. |
 | Cash in (R3 / Enter) | bank the chain. |
 | Camera (LT / Shift) | cycle third person → first person → wide. |
+
+### Grabs from the feet
+
+A foot is *up* (stick up, pulled toward the body), *pressed* (stick down), *toe* (pushed toward the wall) or *heel* (pushed toward the shore). A diagonal stick is two cues at once. The grab that needs the most cues wins, so a tucked heel-side grab is a roast beef, not a melon. The shapes live in `data/tricks.json` under `feet`; this table is the intent.
+
+| Hand | Feet | Grab | Why |
+|---|---|---|---|
+| Grab | front up | Nose grab | the front foot pulls the nose up to the hand |
+| Grab | back up | Tail grab | the back foot pulls the tail up |
+| Grab | both toe | Indy | the back hand finds the toe rail between the feet |
+| Grab | both heel | Melon | the heel rail between the feet |
+| Grab | both heel, tucked | Roast beef | the same rail, reached through the legs in a deep tuck |
+| Grab | front toe, back up | Mute | toe rail with the tail tweaked up |
+| Grab | front up, back toe | Nuclear | the toe rail out past the nose |
+| Grab | front up, back pressed | Rocket | the board stood on its tail, both hands on the nose |
+| Carve | front heel | Lien | front hand on the heel rail by the front foot |
+| Carve | back heel | Stalefish | the heel rail behind the back foot |
+| Carve | both heel | Method | heel rail, board pulled up behind |
+| Carve | front up, back heel | Judo | the front foot kicked off the board |
+| Carve | front heel, back up | Heel flip | the front heel kicks the board over |
+| Carve | front toe, back up | Kick flip | the front toe flicks it |
+| Carve | twisted in (front heel, back toe) | Shove this | the board spun under the feet, one way |
+| Carve | twisted out (front toe, back heel) | Shove it | and the other |
+
+The specials (air and face) are still button sequences gated by the special meter; giving them shapes is open (§10).
 
 ---
 

@@ -86,7 +86,8 @@
     "landAbsorb": 0.4,
     "proLevelRate": 0.25,
     "proTrimDrive": 0.0,
-    "proLandingWindow": 0.8
+    "proLandingWindow": 0.8,
+    "grabSettleSeconds": 0.06
   },
   "recognizer": {
     "engageRail": 0.4,

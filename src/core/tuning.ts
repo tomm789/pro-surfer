@@ -88,6 +88,8 @@ export const TuningSchema = z.object({
     proLevelRate: z.number().nonnegative(),
     proTrimDrive: z.number().nonnegative(),
     proLandingWindow: z.number().positive(),
+    /** How long a foot shape must hold under a grab button before it is read as that grab. */
+    grabSettleSeconds: z.number().nonnegative(),
   }),
   /** Emergent trick recognition thresholds (src/tricks/recognizer.ts). */
   recognizer: z.object({

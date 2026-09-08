@@ -146,6 +146,11 @@ export class RiderSim {
     return this.stanceModel.state;
   }
 
+  /** Wave direction: +1 for a right, −1 for a left. Toe-side is always toward the wall. */
+  get direction(): 1 | -1 {
+    return this.wave.params.direction;
+  }
+
   get dual(): boolean {
     return this.controls === 'dual';
   }

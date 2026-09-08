@@ -8,7 +8,11 @@ import type { Tuning } from '@/core/tuning';
 import type { RiderSim, RiderEvents } from '@/rider/rider';
 import type { RiderInput } from '@/rider/input';
 import { InputSequencer } from './sequencer';
-import { type Trick, type TrickButton, type TrickCatalogue, type TrickSection, TRICKS } from './catalogue';
+import { type Trick, type TrickButton, type TrickCatalogue, type TrickSection, TRICKS, feetMatch, feetShape } from './catalogue';
+
+/** The two grab buttons of the stick scheme: grab is the back hand, carve the front hand. */
+const GRAB_BUTTONS = ['grab', 'carve'] as const;
+type GrabButton = (typeof GRAB_BUTTONS)[number];
 
 export interface LandedTrick {
   trick: Trick;
@@ -49,6 +53,8 @@ export class TrickSystem {
   private holdAccum = { carve: 0, grab: 0, slide: 0 } as Record<TrickButton, number>;
   private holdHeading = 0;
   private holdFired = { carve: false, grab: false, slide: false } as Record<TrickButton, boolean>;
+  /** Stick scheme: one grab per press of each hand; the shape has to settle before it is read. */
+  private grabHold: Record<GrabButton, { fired: boolean; stable: number }> = { grab: { fired: false, stable: 0 }, carve: { fired: false, stable: 0 } };
   private prevState = '';
   /** Gate for special tricks; scoring wires this to the meter (M5). */
   canDoSpecial: () => boolean = () => true;
@@ -126,12 +132,21 @@ export class TrickSystem {
       }
     }
 
+    const dual = this.rider.dual;
+    // Stick scheme: while a hand is on the rail (button held), where the feet are says which grab it
+    // is (docs/MECHANICS.md §6). One grab per press; the shape must hold for a few frames first.
+    if (section === 'air' && dual) this.readGrabs(dt, input);
+
     for (const button of pressed) {
       const atLip = this.rider.v > 0.75;
       const matches = this.sequencer.matches(button, section, atLip);
       let chosen: Trick | null = null;
       for (const m of matches) {
         if (!this.allowed(m.trick)) continue;
+        // in the stick scheme face turns come from the recogniser and grabs from the feet, so the
+        // button-and-direction versions of those must not fire on top; specials still need the meter
+        if (dual && section === 'face' && !m.trick.special) continue;
+        if (dual && section === 'air' && m.trick.feet) continue;
         if (m.trick.special && !this.canDoSpecial()) {
           this.events.emit('specialLocked', { trick: m.trick });
           continue;
@@ -142,7 +157,40 @@ export class TrickSystem {
       if (chosen) this.start(chosen, section, atLip);
     }
 
-    this.updateHolds(dt, input, section);
+    if (!dual) this.updateHolds(dt, input, section);
+  }
+
+  /** The best-matching grab for a held button: the trick whose foot shape needs the most cues that all hold. */
+  private readGrabs(dt: number, input: Readonly<RiderInput>): void {
+    const shape = feetShape(input, this.rider.direction);
+    for (const button of GRAB_BUTTONS) {
+      const h = this.grabHold[button];
+      if (!input[button]) {
+        h.fired = false;
+        h.stable = 0;
+        continue;
+      }
+      if (h.fired) continue;
+      let best: Trick | null = null;
+      let bestN = 0;
+      for (const t of this.catalogue.bySection('air')) {
+        if (!t.feet || t.input.kind !== 'dir' || t.input.button !== button || !this.allowed(t)) continue;
+        const n = feetMatch(t.feet, shape);
+        if (n > bestN) {
+          best = t;
+          bestN = n;
+        }
+      }
+      if (!best) {
+        h.stable = 0;
+        continue;
+      }
+      h.stable += dt;
+      if (h.stable >= this.tuning.stance.grabSettleSeconds) {
+        h.fired = true;
+        this.start(best, 'air', false);
+      }
+    }
   }
 
   private start(trick: Trick, section: TrickSection, atLip: boolean): void {
@@ -217,6 +265,7 @@ export class TrickSystem {
     this.holdAccum = { carve: 0, grab: 0, slide: 0 };
     this.holdFired = { carve: false, grab: false, slide: false };
     this.holdHeading = this.rider.heading;
+    for (const b of GRAB_BUTTONS) this.grabHold[b] = { fired: false, stable: 0 };
   }
 
   /** Held-button tricks: carve/grab turns count after enough heading change; slides after holdSeconds. */

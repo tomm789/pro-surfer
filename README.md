@@ -31,7 +31,7 @@ A gamepad is strongly recommended. **Left stick is your back foot, right stick i
 
 **Speed is a rhythm, not a button.** Extend as you climb the face, compress as you drop. Out of phase gets you nothing, and holding a stick gets you nothing at all. This is the same energy loop as pumping a bowl on a skateboard.
 
-Buttons: **B / K** grab (rail grab in the tube, grabs in the air, duck dive when paddling) · **X / J** carve harder · **Y / L** slide / floater · **LB / RB** or **Q / E** rotation assist · **R3 / Enter** cash in the chain · **LT / Shift** cycle camera (third person → first person → wide) · **Start / Esc** pause.
+Buttons: **B / K** grab (back hand: rail grab in the tube, grabs in the air — hold it and the *foot shape* picks the grab: front foot up = nose grab, both feet toe-side = indy, both heel-side = melon…; duck dive when paddling) · **X / J** carve harder · **Y / L** slide / floater · **LB / RB** or **Q / E** rotation assist · **R3 / Enter** cash in the chain · **LT / Shift** cycle camera (third person → first person → wide) · **Start / Esc** pause.
 
 On a keyboard the back foot is **WASD** and the front foot is the **arrow keys**. It works, but two sticks is the way this is meant to be played.
 
