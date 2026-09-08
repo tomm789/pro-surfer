@@ -119,6 +119,9 @@ export class MenuScreen {
     }
     this.root.appendChild(panel);
     parent.appendChild(this.root);
+    // the cursor starts on the first row that can be chosen, not on a read-only one
+    const first = items.findIndex((it) => !it.disabled);
+    this.selected = first >= 0 ? first : 0;
     this.rebuild();
   }
 
