@@ -143,3 +143,37 @@ describe('grabs in the air', () => {
     expect(r.pending()).toEqual([]);
   });
 });
+
+describe('tube tricks from the feet', () => {
+  it('in the barrel the slide hand plus a foot shape is a tube trick, and a tuck picks the deeper one', () => {
+    const wave = new WaveModel(waveParamsFromBeach(getBeach('reefpass'), waveFeetToMetres(9), { warnSeconds: 2.5 }), new Rng(5), 0);
+    wave.params.sections.rate = 0;
+    const riderEvents = new EventBus<RiderEvents>();
+    const rider = new RiderSim(wave, TUNING, MID, riderEvents, { state: 'face', u: 5, v: 0.4 }, new Rng(5));
+    rider.controls = 'dual';
+    const trickEvents = new EventBus<TrickEvents>();
+    const tricks = new TrickSystem(rider, TUNING, trickEvents, riderEvents);
+    tricks.canDoSpecial = () => false;
+    const landed: string[] = [];
+    trickEvents.on('trickLand', (e) => landed.push(e.trick.id));
+    const step = (inp: Partial<RiderInput> = {}) => {
+      const full = { ...NEUTRAL_INPUT, ...inp };
+      wave.step(DT, rider.u);
+      rider.step(DT, full);
+      tricks.step(DT, full);
+    };
+    // stall on the tail until the barrel takes the rider
+    for (let i = 0; i < 60 * 6 && rider.state !== 'tube'; i++) step(feet([0, -1], [0, 1]));
+    expect(rider.state).toBe('tube');
+    const dir = wave.params.direction;
+    // slide hand + front foot up: one hand on the roof
+    for (let i = 0; i < 60 && rider.state === 'tube'; i++) step({ slide: true, ...feet([0, 0], [0, 1]) });
+    for (let i = 0; i < 10 && rider.state === 'tube'; i++) step();
+    expect(landed).toContain('oneHandRoofDrag');
+    // both feet toe-side and tucked: the two-hand wall drag beats the one-hand one
+    for (let i = 0; i < 60 && rider.state === 'tube'; i++) step({ slide: true, ...feet([dir, -1], [dir, -1]) });
+    for (let i = 0; i < 10 && rider.state === 'tube'; i++) step();
+    expect(landed).toContain('twoHandWallDrag');
+    expect(landed).not.toContain('oneHandWallDrag');
+  });
+});

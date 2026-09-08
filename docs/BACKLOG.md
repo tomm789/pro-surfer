@@ -56,7 +56,7 @@ The pool has zones (`beach.zones`): a lap passes through a barrel section, a wal
 - [ ] Wave variety: sets and lulls are in (`beach.swell`: the face pulses between `lull` and `peak` × nominal on a slow cycle, called on the wave meter; lessons keep a steady wave). Still wanted: multiple peaks, wave selection from the line-up, wind and chop affecting the face (`src/wave`).
 - [ ] Trick catalogue completeness against design doc §5: check every listed trick has an entry in `data/tricks.json` with the right input and section; add missing exit moves and specials per rider.
 - [ ] Specials (face and air) are still button sequences on the left stick gated by the meter. Give them shapes too (MECHANICS §10), or fold them into the recogniser as bigger versions of the basic turns.
-- [ ] Tube tricks are still direction + button. They could read the feet as the air grabs do (`feet` on the tube entries and a `readGrabs` for the tube section).
+- [ ] Tube tricks now read the feet like the air grabs (Slide is the free hand in the barrel; shapes in `data/tricks.json`, table in MECHANICS §6). Whether those eight shapes are the right eight is a controller question.
 - [ ] Longboard mode (design doc §11 requested feature): different physics, cross-stepping, nose rides.
 - [ ] Create-a-surfer: suit colours and board graphics in the roster UI.
 - [ ] Replay sharing is in: the best chain at each beach is kept in the career as a compact recording (sticks are quantised to 1/64 so replays are exact), the Record Book plays them, and a replay can be copied as text and pasted on another machine. Wanted next: a URL form (needs compression: a jittery three-minute run is ~150 KB), and the replay of any run, not only the best chain.

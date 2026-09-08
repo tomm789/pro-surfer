@@ -149,7 +149,20 @@ A foot is *up* (stick up, pulled toward the body), *pressed* (stick down), *toe*
 | Carve | twisted in (front heel, back toe) | Shove this | the board spun under the feet, one way |
 | Carve | twisted out (front toe, back heel) | Shove it | and the other |
 
-The specials (air and face) are still button sequences gated by the special meter; giving them shapes is open (§10).
+In the barrel the free hand is Slide (Y / L) — Grab is the rail grab there — and the same idea picks the drags:
+
+| Hand | Feet | Trick | Why |
+|---|---|---|---|
+| Slide | front up | One hand roof drag | the front foot lightens as the body rises to the roof |
+| Slide | back up | Foot drag | the back foot lifts and trails in the wall |
+| Slide | both up | Christ tube | arms out, feet light |
+| Slide | both toe | One hand wall drag | leaning into the wall |
+| Slide | both toe, tucked | Two hand wall drag | leaning into the wall, low |
+| Slide | both heel | Layback drag | laid back the other way |
+| Slide | both heel, tucked | Grab 'n' drag | laid back and low, hand on the rail |
+| Slide | twisted out | Two hand roof drag | shoulders opened to the roof |
+
+The specials (air, face and tube) are still button sequences gated by the special meter; giving them shapes is open (§10).
 
 ---
 

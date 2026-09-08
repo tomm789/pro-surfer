@@ -129,7 +129,11 @@ export class TrickBookScreen {
               rows: rows(TRICKS.bySection('air').filter((t) => !t.special)),
             },
             { title: 'AIR SPECIALS', note: specialsNote, rows: rows(TRICKS.bySection('air').filter((t) => t.special)) },
-            { title: 'TUBE TRICKS', note: 'Direction on the left stick plus the button, as in the classic scheme.', rows: rows(TRICKS.bySection('tube')) },
+            {
+              title: 'TUBE TRICKS · SHAPES',
+              note: 'In the barrel the free hand is Slide (Grab is the rail grab) and the foot shape picks the drag. Tube specials are still left-stick sequences with the meter.',
+              rows: rows(TRICKS.bySection('tube')),
+            },
             { title: 'EXIT MOVES', rows: rows(TRICKS.bySection('exit')) },
           ]
         : [

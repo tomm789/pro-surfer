@@ -10,9 +10,13 @@ import type { RiderInput } from '@/rider/input';
 import { InputSequencer } from './sequencer';
 import { type Trick, type TrickButton, type TrickCatalogue, type TrickSection, TRICKS, feetMatch, feetShape } from './catalogue';
 
-/** The two grab buttons of the stick scheme: grab is the back hand, carve the front hand. */
-const GRAB_BUTTONS = ['grab', 'carve'] as const;
+/**
+ * The hands of the stick scheme. In the air grab is the back hand and carve the front; in the tube
+ * the slide button is the free hand (grab is the rail grab there, which steadies the balance).
+ */
+const GRAB_BUTTONS = ['grab', 'carve', 'slide'] as const;
 type GrabButton = (typeof GRAB_BUTTONS)[number];
+const HANDS_BY_SECTION: Partial<Record<TrickSection, readonly GrabButton[]>> = { air: ['grab', 'carve'], tube: ['slide'] };
 
 export interface LandedTrick {
   trick: Trick;
@@ -54,7 +58,7 @@ export class TrickSystem {
   private holdHeading = 0;
   private holdFired = { carve: false, grab: false, slide: false } as Record<TrickButton, boolean>;
   /** Stick scheme: one grab per press of each hand; the shape has to settle before it is read. */
-  private grabHold: Record<GrabButton, { fired: boolean; stable: number }> = { grab: { fired: false, stable: 0 }, carve: { fired: false, stable: 0 } };
+  private grabHold: Record<GrabButton, { fired: boolean; stable: number }> = { grab: { fired: false, stable: 0 }, carve: { fired: false, stable: 0 }, slide: { fired: false, stable: 0 } };
   private prevState = '';
   /** Gate for special tricks; scoring wires this to the meter (M5). */
   canDoSpecial: () => boolean = () => true;
@@ -133,9 +137,10 @@ export class TrickSystem {
     }
 
     const dual = this.rider.dual;
-    // Stick scheme: while a hand is on the rail (button held), where the feet are says which grab it
-    // is (docs/MECHANICS.md §6). One grab per press; the shape must hold for a few frames first.
-    if (section === 'air' && dual) this.readGrabs(dt, input);
+    // Stick scheme: while a hand is out (button held), where the feet are says which grab or drag it
+    // is (docs/MECHANICS.md §6). One per press; the shape must hold for a few frames first.
+    const hands = HANDS_BY_SECTION[section];
+    if (hands && dual) this.readGrabs(dt, input, section, hands);
 
     for (const button of pressed) {
       const atLip = this.rider.v > 0.75;
@@ -146,7 +151,7 @@ export class TrickSystem {
         // in the stick scheme face turns come from the recogniser and grabs from the feet, so the
         // button-and-direction versions of those must not fire on top; specials still need the meter
         if (dual && section === 'face' && !m.trick.special) continue;
-        if (dual && section === 'air' && m.trick.feet) continue;
+        if (dual && m.trick.feet) continue;
         if (m.trick.special && !this.canDoSpecial()) {
           this.events.emit('specialLocked', { trick: m.trick });
           continue;
@@ -160,10 +165,10 @@ export class TrickSystem {
     if (!dual) this.updateHolds(dt, input, section);
   }
 
-  /** The best-matching grab for a held button: the trick whose foot shape needs the most cues that all hold. */
-  private readGrabs(dt: number, input: Readonly<RiderInput>): void {
+  /** The best-matching trick for a held hand: the one whose foot shape needs the most cues that all hold. */
+  private readGrabs(dt: number, input: Readonly<RiderInput>, section: TrickSection, hands: readonly GrabButton[]): void {
     const shape = feetShape(input, this.rider.direction);
-    for (const button of GRAB_BUTTONS) {
+    for (const button of hands) {
       const h = this.grabHold[button];
       if (!input[button]) {
         h.fired = false;
@@ -173,7 +178,7 @@ export class TrickSystem {
       if (h.fired) continue;
       let best: Trick | null = null;
       let bestN = 0;
-      for (const t of this.catalogue.bySection('air')) {
+      for (const t of this.catalogue.bySection(section)) {
         if (!t.feet || t.input.kind !== 'dir' || t.input.button !== button || !this.allowed(t)) continue;
         const n = feetMatch(t.feet, shape);
         if (n > bestN) {
@@ -188,7 +193,7 @@ export class TrickSystem {
       h.stable += dt;
       if (h.stable >= this.tuning.stance.grabSettleSeconds) {
         h.fired = true;
-        this.start(best, 'air', false);
+        this.start(best, section, this.rider.v > 0.75);
       }
     }
   }
