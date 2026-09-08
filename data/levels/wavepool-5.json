@@ -1,0 +1,47 @@
+{
+  "id": "wavepool-5",
+  "beach": "wavepool",
+  "name": "Night Shoot",
+  "order": 0.5,
+  "waveFt": 9,
+  "seconds": 180,
+  "sky": "night",
+  "sunElevationDeg": 60,
+  "sunAzimuthDeg": 200,
+  "intro": "Floodlights and a photographer. Three shots: be doing something worth a frame when the shutter goes.",
+  "unlocks": [],
+  "goals": [
+    {
+      "id": "photo",
+      "type": "photo",
+      "target": 5000,
+      "shots": 3,
+      "mode": "best",
+      "required": true
+    },
+    {
+      "id": "photosum",
+      "type": "photo",
+      "target": 9000,
+      "shots": 3,
+      "mode": "sum",
+      "reward": "stat:spin"
+    },
+    {
+      "id": "lips",
+      "type": "zone",
+      "zone": "wall",
+      "what": "turn",
+      "trick": "offTheLip",
+      "count": 4,
+      "reward": "stat:speed"
+    },
+    {
+      "id": "flip",
+      "type": "learnTrick",
+      "trick": "flip1",
+      "count": 1,
+      "reward": "stat:air"
+    }
+  ]
+}

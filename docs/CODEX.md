@@ -35,7 +35,7 @@ npm run dev                  # http://localhost:5173 to play it yourself
 Paste this as the first message in a new Codex thread (desktop or cloud):
 
 ```
-You are joining the LINE-UP project, an original browser surf trick game (TypeScript, Three.js, Vite). Read AGENTS.md first and follow it exactly; then read docs/DESIGN.md (the spec), docs/PLAN.md and docs/BACKLOG.md.
+You are joining the LINE-UP project, an original browser surf trick game (TypeScript, Three.js, Vite). Read AGENTS.md first and follow it exactly; then read docs/MECHANICS.md (the control-to-body source of truth: each stick is a foot), docs/DESIGN.md (the spec), docs/PLAN.md and docs/BACKLOG.md.
 
 Ground rules that matter most: original IP only; the simulation folders stay free of DOM, three and Math.random; every tunable goes in data/tuning.json with its zod schema; content is data under data/; npm run check must stay green; every visual change is verified with a headless screenshot you actually open and look at, every gameplay change with a test or the feel report, every flow change with npm run smoke.
 
@@ -43,7 +43,7 @@ Start by verifying the environment: run bash scripts/setup.sh, then npm run shot
 
 Then work through docs/BACKLOG.md from the top. Before each item, write your plan in a few sentences and record the item under "In progress" in docs/BACKLOG.md with your branch name. Work on a branch named codex/<topic> off main, in small commits with clear messages, and open a pull request against main for each item with before/after screenshots and the numbers you measured. Do not widen a PR beyond its item. When an item is done, move it to "Done" in the backlog with the PR number.
 
-The first two items are the P0 feel pass (chase camera, turning and pumping, jump load and launch) and the P1 surfer model and animation. For the feel pass, propose tuning changes with the measurements from npm run feel before and after, and keep tests/feel.test.ts passing. For the surfer, design the rig and animation set first, show me the plan, then implement it behind the existing RiderView interface so nothing else changes.
+The P0 section of the backlog is a controller session that only a human can do: do not change the numbers in data/tuning.json under stance, recognizer or camera on your own — those are decided with a pad in hand. Start with the P1 items (the visual identity: beaches, the wave, the HUD and menus) and the engineering items, in backlog order. For anything that touches the character or the wave, take a screenshot before and after with the same command and put both in the PR. Any gameplay change must keep tests/onboarding.test.ts, tests/stance.test.ts and tests/feel.test.ts passing and must quote the feel report's dualPump, dualPop, dualRail and dualTwist numbers before and after.
 
 If anything in the docs conflicts with the code, the design doc wins for gameplay rules and AGENTS.md wins for process; say so in the PR. Ask me only when a decision genuinely needs a human; otherwise make the call, state your assumption, and keep going.
 ```

@@ -1,0 +1,47 @@
+{
+  "id": "wavepool-4",
+  "beach": "wavepool",
+  "name": "Pool Contest",
+  "order": 0.4,
+  "waveFt": 8,
+  "seconds": 180,
+  "sky": "evening",
+  "sunElevationDeg": 12,
+  "sunAzimuthDeg": 255,
+  "intro": "A heat at the pool: best two waves count, and the sections are the same for everyone. Use them.",
+  "unlocks": [
+    "wavepool-5"
+  ],
+  "goals": [
+    {
+      "id": "contest",
+      "type": "contest",
+      "place": 2,
+      "opponentTop": 32000,
+      "required": true
+    },
+    {
+      "id": "win",
+      "type": "contest",
+      "place": 1,
+      "opponentTop": 32000,
+      "reward": "stat:speed"
+    },
+    {
+      "id": "barrel",
+      "type": "zone",
+      "zone": "barrel",
+      "what": "tube",
+      "seconds": 10,
+      "reward": "stat:balance"
+    },
+    {
+      "id": "ramp",
+      "type": "zone",
+      "zone": "ramp",
+      "what": "air",
+      "count": 4,
+      "reward": "stat:air"
+    }
+  ]
+}

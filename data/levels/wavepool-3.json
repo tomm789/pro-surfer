@@ -10,6 +10,7 @@
   "sunAzimuthDeg": 230,
   "intro": "Floodlights on. Link the sections into one chain: barrel, wall, ramp, cash in.",
   "unlocks": [
+    "wavepool-4",
     "sandbar-2"
   ],
   "goals": [
