@@ -271,7 +271,7 @@ export class RideScene implements GameScene {
     if (this.rider.controls === 'dual') this.inputManager.setKeymap(KEYMAP_DUAL);
     this.cam = new ChaseCamera(TUNING);
     const camParam = ctx.params.get('cam');
-    if (camParam === 'wide' || camParam === 'close' || camParam === 'shore' || camParam === 'first' || camParam === 'portrait') this.cam.mode = camParam;
+    if (camParam === 'wide' || camParam === 'close' || camParam === 'shore' || camParam === 'first' || camParam === 'portrait' || camParam === 'beach') this.cam.mode = camParam;
     this.rider.pose(this.pose);
     this.cam.snapTo(this.pose, this.wave.params.direction);
     if (!ctx.headless && !this.attract && !ctx.params.has('hosted')) this.inputManager.attach(window);
@@ -757,6 +757,26 @@ export class RideScene implements GameScene {
           this.spray.emit(hand.world.x, hand.world.y + 0.03, hand.world.z, -p.forward.x * (1.5 + speed01 * 2), 1.2 + wet, -p.forward.z * (1.5 + speed01 * 2), 0.35 + Math.random() * 0.4, 0.3 + Math.random() * 0.25, 0.5);
         }
       }
+    }
+    // The foam ball: the whitewater behind the curl is a rolling mass, not a flat texture. Big, soft,
+    // slow sprites tumble along the broken crest just behind the curl and roll down toward the shore.
+    const speed = this.wave.params.breakSpeed;
+    for (let i = 0; i < (r.state === 'tube' ? 2 : 4); i++) {
+      const back = Math.random() * 9;
+      const u = this.wave.curlU - back;
+      this.wave.position(u, 0.55 + Math.random() * 0.45, this.sprayTmp);
+      const settle = back / 9; // further back the ball has collapsed lower and spread shoreward
+      this.spray.emit(
+        this.sprayTmp.x,
+        this.sprayTmp.y - settle * 0.8 + 0.3,
+        this.sprayTmp.z - settle * 2.5,
+        dir * speed * (0.4 + Math.random() * 0.3),
+        0.4 + Math.random() * 0.8,
+        -1.2 - Math.random() * 1.5,
+        2.4 + Math.random() * 2.6,
+        0.7 + Math.random() * 0.6,
+        1.2,
+      );
     }
     // The lip: where the wave is throwing, a sheet of spray comes off the crest ahead of the curl —
     // thrown forward with the lip and blown back up over the crest by the wind it makes — and a

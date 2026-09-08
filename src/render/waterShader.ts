@@ -141,6 +141,12 @@ void main() {
   // and the floor of the barrel picks up a little of that green from above
   body += uShallowColor * vTube * (1.0 - smoothstep(0.0, 0.5, vV)) * 0.12 * shimmer;
 
+  // caustics in the trough: sunlight focused by the ripples onto the shallow water at the foot of
+  // the face, a slow bright web that fades out up the wall and vanishes in foam and in the barrel
+  float web = fbm(vWorldPos.xz * 4.6 + vec2(uTime * 0.45, -uTime * 0.3)) * fbm(vWorldPos.xz * 6.4 - vec2(uTime * 0.25, uTime * 0.4));
+  float caustic = pow(smoothstep(0.22, 0.4, web), 2.0) * (1.0 - smoothstep(0.06, 0.28, h)) * (1.0 - vFoam) * (1.0 - tubeDark) * ndl;
+  body += mix(uShallowColor, vec3(1.0), 0.4) * caustic * 0.2;
+
   // lighting
   vec3 diffuse = body * (0.42 + 0.58 * ndl);
   vec3 R = reflect(-V, N);
