@@ -285,7 +285,14 @@ export class RiderSim {
     const levelRate = R.headingLevelRate * (this.assists ? 1 : S.proLevelRate);
     const quiet = !dual || (Math.abs(st.trim) < 0.3 && Math.abs(st.compression) < 0.5);
     if (Math.abs(turnIn) < 0.15 && quiet) this.heading = damp(this.heading, 0, levelRate, dt);
-    else this.heading = wrapAngle(this.heading + rate * turnIn * dt);
+    else {
+      // The board resists turning far past the line: a cutback can swing beyond 90°, but holding a
+      // full rail must not spin you all the way round. Turning back toward the line is never resisted.
+      const delta = rate * turnIn * dt;
+      const away = this.heading === 0 || Math.sign(delta) === Math.sign(this.heading);
+      const resist = away ? 1 - smoothstep(R.headingMaxRad * 0.65, R.headingMaxRad, Math.abs(this.heading)) : 1;
+      this.heading = wrapAngle(this.heading + delta * resist);
+    }
 
     // board yaw: feet twisting opposite ways pivot the board out from under the direction of travel
     if (dual) {

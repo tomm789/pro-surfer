@@ -414,38 +414,12 @@ export class MainGameScene implements GameScene {
           },
         },
         {
-          id: 'controls',
-          label: 'Controls',
-          value: () => (this.scheme === 'dual' ? 'Dual-stick (feet)' : 'Classic (one stick)'),
-          onAdjust: () => {
-            const o = this.career.data.options;
-            o.controls = o.controls === 'dual' ? 'classic' : 'dual';
-            this.career.save();
-            this.applyScheme();
-            this.audio.uiMove();
-            this.startRide(true);
-          },
-        },
-        {
-          id: 'assists',
-          label: 'Assists',
-          value: () => (this.career.data.options.assists ? 'On' : 'Pro (all off)'),
-          onAdjust: () => {
-            const o = this.career.data.options;
-            o.assists = !o.assists;
-            this.career.save();
-            this.audio.uiMove();
-          },
-        },
-        {
-          id: 'camera',
-          label: 'Camera',
-          value: () => (this.career.data.options.camera === 'first' ? 'First person' : 'Third person'),
-          onAdjust: () => {
-            const o = this.career.data.options;
-            o.camera = o.camera === 'first' ? 'chase' : 'first';
-            this.career.save();
-            this.audio.uiMove();
+          id: 'options',
+          label: 'Options',
+          value: () => (this.scheme === 'dual' ? 'Dual-stick' : 'Classic'),
+          onSelect: () => {
+            this.audio.uiSelect();
+            this.openOptions();
           },
         },
         {
@@ -514,6 +488,58 @@ export class MainGameScene implements GameScene {
             this.startRide(true);
           },
         },
+      ],
+      'Stick/arrows: move · A/Space: select · ←→: change · Esc/Start pauses in-game · M mutes · F fullscreen',
+    );
+    this.menu.prime(this.lastInput);
+    this.audio.music?.play();
+  }
+
+  /** Controls, assists, camera and the machine settings, off the main menu so the boat stays short. */
+  private openOptions(): void {
+    this.flow = 'menu';
+    this.menu?.dispose();
+    this.menu = null;
+    const save = () => this.career.save();
+    this.careerMenu?.dispose();
+    this.careerMenu = new MenuScreen(
+      this.ctx.uiRoot,
+      'OPTIONS',
+      [
+        {
+          id: 'controls',
+          label: 'Controls',
+          value: () => (this.scheme === 'dual' ? 'Dual-stick (each stick is a foot)' : 'Classic (one stick)'),
+          onAdjust: () => {
+            const o = this.career.data.options;
+            o.controls = o.controls === 'dual' ? 'classic' : 'dual';
+            save();
+            this.applyScheme();
+            this.audio.uiMove();
+            this.startRide(true);
+          },
+        },
+        {
+          id: 'assists',
+          label: 'Assists',
+          value: () => (this.career.data.options.assists ? 'On' : 'Pro (all off)'),
+          onAdjust: () => {
+            this.career.data.options.assists = !this.career.data.options.assists;
+            save();
+            this.audio.uiMove();
+          },
+        },
+        {
+          id: 'camera',
+          label: 'Camera',
+          value: () => (this.career.data.options.camera === 'first' ? 'First person' : 'Third person'),
+          onAdjust: () => {
+            const o = this.career.data.options;
+            o.camera = o.camera === 'first' ? 'chase' : 'first';
+            save();
+            this.audio.uiMove();
+          },
+        },
         {
           id: 'full',
           label: 'Fullscreen',
@@ -532,11 +558,12 @@ export class MainGameScene implements GameScene {
             this.audio.uiSelect();
           },
         },
+        { id: 'back', label: 'Back to the boat', onSelect: () => this.openMenu() },
       ],
-      'Stick/arrows: move · A/Space: select · ←→: change · Esc/Start pauses in-game · M mutes · F fullscreen',
+      '←→ changes an option · dual-stick: left stick is your back foot, right stick your front foot, down presses that foot',
     );
-    this.menu.prime(this.lastInput);
-    this.audio.music?.play();
+    this.careerMenu.prime(this.lastInput);
+    this.careerMenu.onBack = () => this.openMenu();
   }
 
   private runSeconds: number | null = null;

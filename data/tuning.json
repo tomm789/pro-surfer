@@ -59,7 +59,8 @@
     "superStallSpeedFraction": 0.22,
     "stallRelax": 2.4,
     "respawnAheadSeconds": 3.4,
-    "overTheBackMinSpeed": 6.5
+    "overTheBackMinSpeed": 6.5,
+    "headingMaxRad": 2.0
   },
   "stance": {
     "footFollowRate": 15.0,

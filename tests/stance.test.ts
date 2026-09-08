@@ -206,6 +206,18 @@ describe('dual-stick rider', () => {
     expect(Number(pop!.split(':')[1])).toBeGreaterThan(0.5);
   });
 
+  it('holding a full rail turns hard but does not spin the board round', () => {
+    const r = rig();
+    let peak = 0;
+    r.run(4, () => {
+      peak = Math.max(peak, Math.abs(r.rider.headingDeg));
+      return feet([1, -1], [1, -1]);
+    });
+    // a cutback swings past 90°, but the board resists going round and never reverses
+    expect(peak).toBeGreaterThan(80);
+    expect(peak).toBeLessThan(140);
+  });
+
   it('auto-trim straightens a resting board but does not fight a deliberate stall', () => {
     // sticks at rest: the assist finds a line again
     const resting = rig();

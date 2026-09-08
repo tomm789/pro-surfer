@@ -53,6 +53,8 @@ export const TuningSchema = z.object({
     respawnV: z.number().min(0).max(1),
     boardLength: z.number().positive(),
     headingLevelRate: z.number().nonnegative(),
+    /** How far off the line the board will turn before it resists, radians (a cutback goes past 90°). */
+    headingMaxRad: z.number().positive(),
     overTheBackSin: z.number().min(0).max(1),
     overTheBackMinSpeed: z.number().nonnegative(),
     stallSpeedFraction: z.number().min(0).max(1),

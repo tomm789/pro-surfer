@@ -9,7 +9,7 @@ const CSS = `
 .scr .tag{font-size:16px;letter-spacing:5px;color:#bfe9ff;margin-top:8px;font-weight:800}
 .scr .press{margin-top:56px;font-size:20px;font-weight:800;letter-spacing:3px;animation:scrblink 1.1s steps(2,end) infinite}
 @keyframes scrblink{50%{opacity:.25}}
-.scr .panel{background:rgba(2,18,32,.62);border:2px solid rgba(255,255,255,.35);border-radius:16px;padding:26px 36px;min-width:520px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.scr .panel{background:rgba(2,18,32,.62);border:2px solid rgba(255,255,255,.35);border-radius:16px;padding:26px 36px;min-width:520px;box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:94vh;overflow-y:auto;scrollbar-width:thin}
 .scr h1{margin:0 0 14px 0;font-size:28px;letter-spacing:4px;font-weight:900;color:#fff}
 .scr h2{margin:18px 0 8px 0;font-size:13px;letter-spacing:3px;color:#bfe9ff;font-weight:800}
 .scr .item{font-size:22px;font-weight:800;padding:7px 14px;border-radius:8px;display:flex;justify-content:space-between;gap:30px}

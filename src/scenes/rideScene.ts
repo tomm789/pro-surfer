@@ -648,15 +648,29 @@ export class RideScene implements GameScene {
     const r = this.rider;
     const p = this.pose;
     const dir = this.wave.params.direction;
-    // rail spray off the tail when carving hard or moving fast
+    // Rail spray off the tail. How much rail is buried is the thing the player is controlling, so the
+    // spray is driven by that rather than by the heading alone — a committed carve should throw a sheet.
     if ((r.state === 'face' || r.state === 'floater') && r.speed > 4.5) {
-      const n = Math.floor(speed01 * 2 + Math.abs(lean) * speed01 * 7 + (this.riderView.model.poseName.startsWith('carve') ? 3 : 0));
+      const rail = r.dual ? r.stance.rail : lean;
+      const bite = Math.min(1, Math.abs(rail) * (0.55 + 0.45 * Math.max(0, r.stance.compression)));
+      const slip = Math.min(1, Math.abs(r.boardYaw) * 1.6);
+      const n = Math.floor(speed01 * 2 + bite * speed01 * 11 + slip * speed01 * 6);
       const tx = p.pos.x - p.forward.x * 0.9;
       const ty = p.pos.y - p.forward.y * 0.9 + 0.05;
       const tz = p.pos.z - p.forward.z * 0.9;
-      const side = -Math.sign(lean || 1) * dir;
+      const side = -Math.sign(rail || lean || 1) * dir;
+      const throwOut = 3.5 * bite + 2.2 * slip;
       for (let i = 0; i < n; i++) {
-        this.spray.emit(tx, ty, tz, -p.forward.x * 2 + p.right.x * side * 3.5 * Math.abs(lean), 2 + 3.5 * Math.abs(lean), -p.forward.z * 2 + p.right.z * side * 3.5 * Math.abs(lean), 0.5 + Math.random() * 0.9, 0.45 + Math.random() * 0.3);
+        this.spray.emit(
+          tx,
+          ty,
+          tz,
+          -p.forward.x * 2 + p.right.x * side * throwOut,
+          2 + 3.5 * bite + 1.5 * slip,
+          -p.forward.z * 2 + p.right.z * side * throwOut,
+          0.5 + Math.random() * (0.9 + bite),
+          0.45 + Math.random() * 0.3,
+        );
       }
     }
     // lip mist blown back along the crest near the curl
