@@ -12,6 +12,13 @@
     "severity": 0.35,
     "doubleUp": false
   },
+  "swell": {
+    "period": 80,
+    "setSeconds": 30,
+    "peak": 1.12,
+    "lull": 0.86,
+    "variance": 0.1
+  },
   "hazards": [
     "ice",
     "turtle"

@@ -115,6 +115,7 @@ export class RideScene implements GameScene {
   private recognizer: TrickRecognizer | null = null;
   private wasSliding = false;
   private lastZoneCallU: number | null = null;
+  private lastSetCalled = -1;
   private paramsString = '';
   private seed = 1;
   private replayChrome: HTMLElement[] = [];
@@ -172,7 +173,8 @@ export class RideScene implements GameScene {
     this.auto = ctx.params.get('auto') === '1';
     this.assistBalance = ctx.params.get('assist') === 'balance';
     this.debug = ctx.params.get('debug') === '1';
-    const params = waveParamsFromBeach(beach, waveFeetToMetres(this.waveFt), { warnSeconds: TUNING.wave.sectionWarnSeconds });
+    // sets and lulls on the ocean breaks; lessons keep a steady wave to learn on
+    const params = waveParamsFromBeach(beach, waveFeetToMetres(this.waveFt), { warnSeconds: TUNING.wave.sectionWarnSeconds, swell: !this.level?.lesson });
     this.wave = new WaveModel(params, new Rng(ctx.seed), 0);
     const riderDef = getRider(ctx.params.get('rider') ?? listRiders()[0]!.id);
     const boardDef = getBoard(ctx.params.get('board') ?? listBoards()[0]!.id);
@@ -317,6 +319,7 @@ export class RideScene implements GameScene {
       chainOpen: false,
       objective: this.level ? [`${beach.name.toUpperCase()} · ${this.level.name.toUpperCase()}`, ...this.goals!.hudLines()] : [this.playerLabel || 'FREE SURF', `${beach.name} · ${this.waveFt} ft ${beach.breakDirection}`],
       waveHeightFt: this.waveFt,
+      swell: null,
       nextWaveFt: null,
       sectionsAhead: [],
       warning: false,
@@ -795,7 +798,17 @@ export class RideScene implements GameScene {
     s.chainLabel = this.run.chain.label();
     s.chainBase = this.run.chain.base;
     s.chainMultiplier = this.run.chain.multiplier;
-    s.waveHeightFt = this.waveFt;
+    s.waveHeightFt = this.waveFt * this.wave.swellFactor;
+    if (this.wave.params.swell) {
+      const sw = this.wave.swellInfo();
+      s.swell = { inSet: sw.inSet, nextSetIn: sw.nextSetIn };
+      // one call per set, as it comes into range
+      if (!sw.inSet && sw.nextSetIn < 8 && sw.setIndex !== this.lastSetCalled && !this.attract) {
+        this.lastSetCalled = sw.setIndex;
+        this.hud.flash('SET COMING', 'info', 2.5);
+        this.audio?.warning();
+      }
+    } else s.swell = null;
     if (this.goals && this.level) {
       s.objective = [`${this.level.name.toUpperCase()}`, ...this.goals.hudLines()];
       if (this.contest) {

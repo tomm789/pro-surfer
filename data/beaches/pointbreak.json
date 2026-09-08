@@ -12,6 +12,13 @@
     "severity": 0.15,
     "doubleUp": false
   },
+  "swell": {
+    "period": 90,
+    "setSeconds": 36,
+    "peak": 1.22,
+    "lull": 0.8,
+    "variance": 0.15
+  },
   "hazards": [
     "windsurfer",
     "kayak"

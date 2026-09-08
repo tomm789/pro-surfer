@@ -44,7 +44,7 @@ The pool has zones (`beach.zones`): a lap passes through a barrel section, a wal
 ## P2 — gameplay depth
 
 - [ ] Visible AI surfers: contest opponents exist only as a score model (`src/goals/contest.ts`). Render them surfing their own waves, and add drop-in hazards in free surf.
-- [ ] Wave variety: sets and lulls, multiple peaks, wave selection from the line-up, wind and chop affecting the face (`src/wave`).
+- [ ] Wave variety: sets and lulls are in (`beach.swell`: the face pulses between `lull` and `peak` × nominal on a slow cycle, called on the wave meter; lessons keep a steady wave). Still wanted: multiple peaks, wave selection from the line-up, wind and chop affecting the face (`src/wave`).
 - [ ] Trick catalogue completeness against design doc §5: check every listed trick has an entry in `data/tricks.json` with the right input and section; add missing exit moves and specials per rider.
 - [ ] Specials (face and air) are still button sequences on the left stick gated by the meter. Give them shapes too (MECHANICS §10), or fold them into the recogniser as bigger versions of the basic turns.
 - [ ] Tube tricks are still direction + button. They could read the feet as the air grabs do (`feet` on the tube entries and a `readGrabs` for the tube section).

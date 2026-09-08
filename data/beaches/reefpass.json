@@ -12,6 +12,13 @@
     "severity": 0.5,
     "doubleUp": true
   },
+  "swell": {
+    "period": 100,
+    "setSeconds": 40,
+    "peak": 1.25,
+    "lull": 0.76,
+    "variance": 0.15
+  },
   "hazards": [
     "jetski"
   ],

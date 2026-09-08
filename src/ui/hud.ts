@@ -15,6 +15,8 @@ export interface HudState {
   chainOpen: boolean;
   objective: string[];
   waveHeightFt: number;
+  /** Sets and lulls on the ocean breaks: where the swell is in its cycle; null for a steady wave. */
+  swell: { inSet: boolean; nextSetIn: number } | null;
   nextWaveFt: number | null;
   /** Section markers as metres ahead of the rider (negative = behind). */
   sectionsAhead: number[];
@@ -320,7 +322,7 @@ export class Hud {
       if (this.ratingTimer <= 0) this.rating.className = 'rating';
     }
     // wave meter: rider at 25% from the left, +60 m to the right edge
-    this.wmH.textContent = `${s.waveHeightFt.toFixed(0)} FT`;
+    this.wmH.textContent = `${s.waveHeightFt.toFixed(0)} FT${s.swell ? (s.swell.inSet ? ' · SET' : s.swell.nextSetIn < 10 ? ` · SET IN ${Math.ceil(s.swell.nextSetIn)}` : ' · lull') : ''}`;
     this.wmNext.textContent = s.nextWaveFt !== null ? `next ${s.nextWaveFt.toFixed(0)} ft` : '';
     const w = 214;
     const toX = (m: number) => 8 + (w - 16) * (0.25 + m / 80);

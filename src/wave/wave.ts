@@ -46,6 +46,28 @@ export interface WaveParams {
    * their variety from scheduled sections instead.
    */
   zones?: { wavelength: number; hollowAmp: number; heightAmp: number };
+  /**
+   * Sets and lulls: the face pulses between `lull` × and `peak` × the nominal height on a cycle of
+   * `period` seconds, the set taking `setSeconds` of it; each set's peak varies by ±`variance`.
+   */
+  swell?: { period: number; setSeconds: number; peak: number; lull: number; variance: number };
+}
+
+/** Where the swell is in its cycle. */
+export interface SwellInfo {
+  /** Multiplier on the nominal face height right now. */
+  factor: number;
+  inSet: boolean;
+  /** Seconds until the next set starts (0 during a set). */
+  nextSetIn: number;
+  /** Which set is current or next, counting from the start of the ride. */
+  setIndex: number;
+}
+
+/** Deterministic 0…1 noise from an integer and a seed; the sim never touches Math.random. */
+function hash01(k: number, seed: number): number {
+  const v = Math.sin(k * 12.9898 + seed * 78.233) * 43758.5453;
+  return v - Math.floor(v);
 }
 
 /** What the wave is doing at this point along a zoned venue. */
@@ -94,6 +116,11 @@ export class WaveModel {
   private p2: Point2 = { d: 0, y: 0 };
   private t2: Point2 = { d: 0, y: 0 };
   private mergedCount = 0;
+  /** The swell cycle: a ride starts in a lull with the first set 15–30 s out, so the size arrives. */
+  private swellOffset = 0;
+  private swellSeed = 0;
+  /** Multiplier on the nominal face height right now (1 for a steady wave). */
+  swellFactor = 1;
 
   constructor(
     readonly params: WaveParams,
@@ -106,11 +133,36 @@ export class WaveModel {
       aheadMin: params.sectionAheadMin,
       aheadMax: params.sectionAheadMax,
     });
+    if (params.swell) {
+      this.swellSeed = rng.next();
+      this.swellOffset = params.swell.period - rng.range(15, 30);
+      this.swellFactor = this.swellAt(0).factor;
+    }
+  }
+
+  /** Where the swell is in its cycle at time t. */
+  private swellAt(t: number): SwellInfo {
+    const S = this.params.swell;
+    if (!S) return { factor: 1, inSet: false, nextSetIn: Infinity, setIndex: 0 };
+    const x = t + this.swellOffset;
+    const k = Math.floor(x / S.period);
+    const tau = x - k * S.period;
+    // the variance is on the set's size above the lull, so a big beach does not double up on itself
+    const peak = S.lull + (S.peak - S.lull) * (1 + S.variance * (hash01(k, this.swellSeed) * 2 - 1));
+    const inSet = tau < S.setSeconds;
+    // a sin² bump: the set builds from nothing, peaks in the middle and fades out
+    const s = inSet ? Math.sin((Math.PI * tau) / S.setSeconds) ** 2 : 0;
+    return { factor: S.lull + (peak - S.lull) * s, inSet, nextSetIn: inSet ? 0 : S.period - tau, setIndex: inSet ? k : k + 1 };
+  }
+
+  swellInfo(): SwellInfo {
+    return this.swellAt(this.time);
   }
 
   /** Advance the wave. `riderU` lets the scheduler place sections as a threat; may be null. */
   step(dt: number, riderU: number | null = null): void {
     this.time += dt;
+    this.swellFactor = this.swellAt(this.time).factor;
     this.curlU += this.params.breakSpeed * dt;
     const s = this.scheduler.update(this.time, this.curlU, riderU);
     if (s) this.sections.push(s);
@@ -158,7 +210,7 @@ export class WaveModel {
     // gentle height variation along the line so the wall isn't a ruler
     const wobble = 1 + 0.05 * Math.sin(u * 0.11) + 0.03 * Math.sin(u * 0.37 + 1.3);
     const z = this.zoneShape(u);
-    o.H = P.height * wobble * z.height * (1 + jack);
+    o.H = P.height * wobble * z.height * (1 + jack) * this.swellFactor;
     const hollowness = clamp(P.hollowness * z.hollow, 0, 1);
     o.hollow = clamp(hollow * hollowness, 0, 1) * (P.tube ? 1 : 0.55);
     o.broken = clamp(broken, 0, 1);
@@ -327,9 +379,11 @@ export function waveParamsFromBeach(
     tube: boolean;
     sections: SectionProfile;
     zones?: { wavelength: number; hollowAmp: number; heightAmp: number };
+    swell?: { period: number; setSeconds: number; peak: number; lull: number; variance: number };
   },
   heightMetres: number,
-  tuning: { throwLength?: number; collapseLength?: number; warnSeconds: number },
+  /** `swell: true` turns the beach's sets and lulls on; off by default so tests and lessons get a steady wave. */
+  tuning: { throwLength?: number; collapseLength?: number; warnSeconds: number; swell?: boolean },
 ): WaveParams {
   return {
     height: heightMetres,
@@ -340,6 +394,7 @@ export function waveParamsFromBeach(
     tube: beach.tube,
     sections: { ...beach.sections },
     ...(beach.zones ? { zones: { ...beach.zones } } : {}),
+    ...(tuning.swell && beach.swell ? { swell: { ...beach.swell } } : {}),
     throwLength: tuning.throwLength ?? Math.max(7, heightMetres * 3.6),
     collapseLength: tuning.collapseLength ?? Math.max(5, heightMetres * 2.5),
     warnSeconds: tuning.warnSeconds,

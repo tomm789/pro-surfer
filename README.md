@@ -67,6 +67,11 @@ npm run check           # typecheck + tests + build
 npm run test            # vitest
 npm run smoke           # walks every menu flow headlessly (plus a scored run, pause, results, replay), fails on runtime errors
 npm run perf            # sim / render / draw-call cost against a budget
+```
+
+The ocean breaks come in sets: the face pulses between a lull and a set on a slow cycle, the wave meter says what is coming ("8 FT · SET IN 6"), and the sets get bigger the heavier the beach. The Long Pool and the lessons are steady.
+
+```sh
 npm run feel            # design doc §14 feel checklist with a measurement report
 npm run shot -- --scene ride --beach reefpass --ft 10 --t 20   # headless screenshot into artifacts/
 npm run clip -- --scene ride --seconds 10                       # headless WebM clip

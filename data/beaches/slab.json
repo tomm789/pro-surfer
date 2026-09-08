@@ -7,14 +7,29 @@
   "breakSpeed": 8.0,
   "faceAspect": 1.15,
   "tube": true,
-  "sections": { "rate": 2.5, "severity": 0.5, "doubleUp": true },
-  "hazards": ["sponger"],
+  "sections": {
+    "rate": 2.5,
+    "severity": 0.5,
+    "doubleUp": true
+  },
+  "swell": {
+    "period": 110,
+    "setSeconds": 40,
+    "peak": 1.25,
+    "lull": 0.78,
+    "variance": 0.18
+  },
+  "hazards": [
+    "sponger"
+  ],
   "look": {
     "sky": "day",
     "waterDeep": "#083f63",
     "waterShallow": "#2fc4c8",
     "sunAzimuthDeg": 215,
     "sunElevationDeg": 48,
-    "landmarks": ["palms"]
+    "landmarks": [
+      "palms"
+    ]
   }
 }

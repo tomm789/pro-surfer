@@ -12,6 +12,13 @@
     "severity": 0.15,
     "doubleUp": false
   },
+  "swell": {
+    "period": 75,
+    "setSeconds": 30,
+    "peak": 1.18,
+    "lull": 0.84,
+    "variance": 0.12
+  },
   "hazards": [
     "tuber",
     "pier"

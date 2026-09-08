@@ -38,6 +38,20 @@ export const BeachSchema = z.object({
       heightAmp: z.number().min(0).max(1),
     })
     .optional(),
+  /**
+   * Sets and lulls: the swell pulses in size on a slow cycle. `period` seconds per cycle, of which
+   * `setSeconds` is the set; the face is `peak` × the nominal height at the top of a set and `lull` ×
+   * between sets; each set's peak varies by up to ±`variance`. Omit for a steady wave (the pool).
+   */
+  swell: z
+    .object({
+      period: z.number().positive(),
+      setSeconds: z.number().positive(),
+      peak: z.number().positive(),
+      lull: z.number().positive(),
+      variance: z.number().min(0).max(1).default(0.15),
+    })
+    .optional(),
   /** Available hazards / objects (ids from data/objects). */
   hazards: z.array(z.string()),
   /** Look & feel (sky, water tint, landmarks) — presentation only. */

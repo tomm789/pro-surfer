@@ -148,6 +148,8 @@ try {
       t += 0.5;
     }
   }
+  // turns every half second keep the chain open, so bank it the way a player would: cash in at the end
+  script.push({ t: 33.4, input: { cashIn: true } }, { t: 33.6, input: {} });
   await page.evaluate((s) => window.__lineup.setInput({ script: s }), script);
   await page.evaluate(() => window.__lineup.stepTo(window.__lineup.time() + 34));
   const scored = await page.evaluate(() => {

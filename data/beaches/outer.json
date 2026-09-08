@@ -7,8 +7,21 @@
   "breakSpeed": 9.5,
   "faceAspect": 1.5,
   "tube": false,
-  "sections": { "rate": 2.0, "severity": 0.7, "doubleUp": true },
-  "hazards": ["jetski"],
+  "sections": {
+    "rate": 2.0,
+    "severity": 0.7,
+    "doubleUp": true
+  },
+  "swell": {
+    "period": 120,
+    "setSeconds": 45,
+    "peak": 1.3,
+    "lull": 0.74,
+    "variance": 0.18
+  },
+  "hazards": [
+    "jetski"
+  ],
   "look": {
     "sky": "cloudy",
     "waterDeep": "#0a3550",
