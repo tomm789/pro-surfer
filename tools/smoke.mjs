@@ -160,6 +160,56 @@ try {
   rows.push(`${scoreOk ? 'ok  ' : 'FAIL'} scored run: score=${scored.score} recognised=${scored.events}`);
   await page.evaluate(() => window.__lineup.setInput(null));
 
+  // The rest of a session: pause and continue, end it to the results screen, watch the replay of the
+  // best chain, and come back to the boat. The scored run above is what makes the replay exist.
+  await press('Escape');
+  await check('pause menu', 'paused');
+  freshMenu();
+  await press('Enter'); // continue
+  await stepN(10);
+  await check('continue from pause', 'ride');
+  await press('Escape');
+  freshMenu();
+  await goto(2); // end session
+  await press('Enter');
+  await stepN(240); // the end countdown, the transition, and the results screen's own settle time
+  await check('results after the session', 'results');
+  await press('KeyL'); // L / Y: replay of the best chain
+  await stepN(60);
+  await check('replay of the best chain', 'replay');
+  await stepN(240);
+  await press('Enter'); // ends the replay early
+  await stepN(90);
+  await check('results after the replay', 'results');
+  await press('Enter');
+  await stepN(90);
+  freshMenu();
+  await check('boat after results', 'menu');
+
+  // The controller test: opens from options, and leaves only on a held press.
+  const title = async () => page.evaluate(() => document.querySelector('.scr h1')?.textContent ?? '');
+  await goto(7); // options
+  await press('Enter');
+  await stepN(10);
+  freshMenu();
+  await goto(3); // controller test
+  await press('Enter');
+  await stepN(10);
+  const opened = (await title()) === 'CONTROLLER TEST';
+  if (!opened) failures++;
+  rows.push(`${opened ? 'ok  ' : 'FAIL'} controller test open: title=${await title()}`);
+  await press('KeyK', 2, 6); // a tap must not leave
+  const stayed = (await title()) === 'CONTROLLER TEST';
+  if (!stayed) failures++;
+  rows.push(`${stayed ? 'ok  ' : 'FAIL'} controller test survives a tap`);
+  await page.keyboard.down('KeyK');
+  for (let i = 0; i < 14; i++) await stepN(5); // input is polled once per step() call, so hold across batches
+  await page.keyboard.up('KeyK');
+  await stepN(10);
+  const left = (await title()) === 'OPTIONS';
+  if (!left) failures++;
+  rows.push(`${left ? 'ok  ' : 'FAIL'} controller test leaves on a held press: title=${await title()}`);
+
   console.log(rows.join('\n'));
   if (errors.length) {
     failures += errors.length;

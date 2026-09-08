@@ -15,6 +15,7 @@
     "shot": "node tools/screenshot.mjs",
     "clip": "node tools/clip.mjs",
     "smoke": "node tools/smoke.mjs",
+    "perf": "node tools/perf.mjs --scene ride --beach wavepool --auto 1 --controls dual --t 20 --budget",
     "feel": "vitest run tests/feel.test.ts && node -e \"console.log(require('fs').readFileSync('artifacts/feel-report.json','utf8'))\"",
     "setup": "bash scripts/setup.sh"
   },

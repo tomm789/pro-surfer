@@ -64,8 +64,7 @@ The pool has zones (`beach.zones`): a lap passes through a barrel section, a wal
 ## P3 — engineering
 
 - [ ] Split `src/scenes/gameScene.ts` (menus, results, replay, multiplayer flow are one class) into flow modules with a small state machine.
-- [ ] Extend `tools/smoke.mjs` to cover the pause menu, results, and replay; run it in CI (already wired in `.github/workflows/ci.yml`).
-- [ ] Perf budget check in CI using `tools/perf.mjs` thresholds.
+- [ ] The smoke now covers pause, results, the replay and the controller test, and `npm run perf` runs a budget in CI. Still missing from the smoke: the lessons list beyond the first lesson, the scrapbook's photo view, the head-to-head results.
 - [ ] Vercel: production branch is still the original feature branch; switch it to `main` in the project settings.
 
 ## Done

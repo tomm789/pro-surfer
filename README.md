@@ -65,7 +65,8 @@ Lessons (seven short tutorials with on-screen hints, from standing up to the tub
 bash scripts/setup.sh   # npm ci, headless Chromium for the tools, npm run check
 npm run check           # typecheck + tests + build
 npm run test            # vitest
-npm run smoke           # walks every menu flow headlessly, fails on runtime errors
+npm run smoke           # walks every menu flow headlessly (plus a scored run, pause, results, replay), fails on runtime errors
+npm run perf            # sim / render / draw-call cost against a budget
 npm run feel            # design doc §14 feel checklist with a measurement report
 npm run shot -- --scene ride --beach reefpass --ft 10 --t 20   # headless screenshot into artifacts/
 npm run clip -- --scene ride --seconds 10                       # headless WebM clip

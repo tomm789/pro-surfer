@@ -51,7 +51,8 @@ npm run check               # typecheck + tests + build — must pass before eve
 npm run test                # vitest only
 npm run shot -- --scene game --flow ride --auto 1 --t 8 --out artifacts/ride.png   # headless screenshot
 npm run clip -- --scene ride --beach reefpass --ft 10 --seconds 10                 # headless WebM clip
-npm run smoke               # walks every menu flow headlessly and fails on any runtime error
+npm run smoke               # walks every menu flow headlessly (menus, a scored run, pause, results, replay, controller test) and fails on any runtime error
+npm run perf                # sim/render/draw-call cost on the pool against a budget; CI runs it after the smoke
 npm run feel                # runs the §14 feel checklist and prints the measurement report
 ```
 

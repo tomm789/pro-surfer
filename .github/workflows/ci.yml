@@ -30,6 +30,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run build
       - run: npm run smoke
+      - run: npm run perf
       - name: Screenshots for review
         run: |
           node tools/screenshot.mjs --scene game --flow ride --auto 1 --t 8 --out artifacts/ride.png
