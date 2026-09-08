@@ -39,6 +39,8 @@ export interface CareerData {
   };
   /** The best-chain replay per beach. */
   replays: Record<string, SavedReplay>;
+  /** Create-a-surfer: colour overrides as #rrggbb, absent keys keep the rider's or board's own look. */
+  custom: { suit?: string; accent?: string; board?: string; boardAccent?: string };
 }
 
 const KEY = 'lineup.career.v1';
@@ -67,6 +69,7 @@ export function defaultCareer(): CareerData {
     records: { bestScore: 0, bestChain: 0, longestTube: 0, mostSpecialTime: 0, perBeach: {}, byRider: {} },
     options: { controls: 'dual', camera: 'chase', assists: true, feet: 'left-back', press: 'down', reducedMotion: false, buttons: 'standard' },
     replays: {},
+    custom: {},
   };
 }
 

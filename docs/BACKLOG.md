@@ -58,7 +58,7 @@ The pool has zones (`beach.zones`): a lap passes through a barrel section, a wal
 - [ ] Specials (face and air) are still button sequences on the left stick gated by the meter. Give them shapes too (MECHANICS §10), or fold them into the recogniser as bigger versions of the basic turns.
 - [ ] Tube tricks now read the feet like the air grabs (Slide is the free hand in the barrel; shapes in `data/tricks.json`, table in MECHANICS §6). Whether those eight shapes are the right eight is a controller question.
 - [ ] Longboard mode (design doc §11 requested feature): different physics, cross-stepping, nose rides.
-- [ ] Create-a-surfer: suit colours and board graphics in the roster UI.
+- [ ] Create-a-surfer: suit, accent, board and stripe colours are on the boat menu from a named palette, saved with the career and previewed on the background ride. Wanted next: board graphics (a few stripe and flash patterns), a name, and a hair or tuft choice.
 - [ ] Replay sharing is in: the best chain at each beach is kept in the career as a compact recording (sticks are quantised to 1/64 so replays are exact), the Record Book plays them, and a replay can be copied as text and pasted on another machine. Wanted next: a URL form (needs compression: a jittery three-minute run is ~150 KB), and the replay of any run, not only the best chain.
 - [ ] Online leaderboards: needs a backend; keep it optional and privacy-safe.
 

@@ -249,13 +249,18 @@ export class RideScene implements GameScene {
     this.scene.add(this.env.group);
     this.waveMesh = new WaveMesh(this.uniforms);
     this.scene.add(this.waveMesh.mesh);
+    // create-a-surfer: a colour param (suit, accent, boardColour, boardAccent as rrggbb) overrides the data
+    const hex = (param: string, fallback: string): number => {
+      const v = ctx.params.get(param);
+      return parseInt((v && /^[0-9a-fA-F]{6}$/.test(v) ? v : fallback.replace('#', '')).slice(0, 6), 16);
+    };
     this.riderView = new RiderView(boardDef.length, {
-      suit: parseInt(riderDef.look.suit.slice(1), 16),
-      accent: parseInt(riderDef.look.accent.slice(1), 16),
+      suit: hex('suit', riderDef.look.suit),
+      accent: hex('accent', riderDef.look.accent),
       skin: parseInt(riderDef.look.skin.slice(1), 16),
       hair: parseInt(riderDef.look.hair.slice(1), 16),
-      board: parseInt(boardDef.colour.slice(1), 16),
-      boardAccent: parseInt(riderDef.look.boardAccent.slice(1), 16),
+      board: hex('boardColour', boardDef.colour),
+      boardAccent: hex('boardAccent', riderDef.look.boardAccent),
     });
     this.scene.add(this.riderView.group);
     this.landmarks = new Landmarks(beach);

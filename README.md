@@ -71,6 +71,8 @@ npm run perf            # sim / render / draw-call cost against a budget
 
 **Tuning the feel live.** During a solo ride press **T** for the live tuning panel: PageUp/PageDown pick a constant (stance, rider, recogniser, camera), **,** / **.** nudge it by 5%, **0** resets it, **9** copies every changed value as JSON (and prints it to the console) to paste into `data/tuning.json`. The simulation reads the values every step, so a nudge shows on the next frame. Options also has **Feet** (which stick is the back foot) and **Press** (whether stick down or stick up presses a foot) for anyone whose thumbs disagree with the default, **Buttons** (standard or Nintendo layout), **Motion** (reduced: no wipes, no reveals), and **Export / Import save** so a career survives a browser reset. `npm run feel` prints reference numbers for the stick scheme (pump vs trim, the pop, a held rail, a pivot) to compare against after a tuning change.
 
+**Your surfer.** The bottom of the boat menu picks suit, accent, board and stripe colours from a palette; they are saved with the career and the rider behind the menu wears them straight away.
+
 **Replays.** The best chain at each beach is kept with your career. The Record Book plays them, copies the best one as text, and plays a pasted one — so a run can be sent to someone else and watched exactly as it happened.
 
 The ocean breaks come in sets: the face pulses between a lull and a set on a slow cycle, the wave meter says what is coming ("8 FT · SET IN 6"), and the sets get bigger the heavier the beach. The Long Pool and the lessons are steady.

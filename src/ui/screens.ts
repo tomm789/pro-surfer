@@ -147,6 +147,12 @@ export class MenuScreen {
       this.list.appendChild(row);
       this.rows.push(row);
     });
+    // a long menu on a short window scrolls inside its panel; keep the cursor in view
+    try {
+      this.rows[this.selected]?.scrollIntoView({ block: 'nearest' });
+    } catch {
+      /* not every environment implements it */
+    }
   }
 
   private activate(): void {

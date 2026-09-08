@@ -7,7 +7,7 @@ import { listBeaches } from '@/world/beaches';
 import { AudioManager } from '@/audio/audio';
 import { BootScreen, MenuNav, MenuScreen, ResultsScreen, type MenuItem, type ResultRow } from '@/ui/screens';
 import { ReplayPlayer, decodeRecording, encodeRecording, type Recording } from '@/core/replay';
-import type { SavedReplay } from '@/save/career';
+import type { CareerData, SavedReplay } from '@/save/career';
 import { Transition } from '@/ui/transition';
 import { Scrapbook } from '@/save/scrapbook';
 import { ScrapbookScreen } from '@/ui/scrapbook';
@@ -25,6 +25,22 @@ import { TuningPanel } from '@/ui/tuningPanel';
 import { TUNING as T } from '@/core/tuning';
 
 type Flow = 'boot' | 'menu' | 'ride' | 'paused' | 'results' | 'split' | 'interstitial' | 'replay';
+
+/** Create-a-surfer palette: named so the menu can say "coral" rather than a hex code. */
+const PALETTE: { name: string; hex: string }[] = [
+  { name: 'black', hex: '#15181c' },
+  { name: 'navy', hex: '#1d2b3a' },
+  { name: 'white', hex: '#f4f0e6' },
+  { name: 'coral', hex: '#ff7a3d' },
+  { name: 'sunset', hex: '#ffb347' },
+  { name: 'lime', hex: '#3ef0a0' },
+  { name: 'teal', hex: '#2fd3c8' },
+  { name: 'sky', hex: '#5fb0ff' },
+  { name: 'violet', hex: '#8a63d2' },
+  { name: 'magenta', hex: '#ff4fa3' },
+  { name: 'red', hex: '#e03b3b' },
+  { name: 'sand', hex: '#d9c39a' },
+];
 
 /**
  * The game shell: boot screen (audio + gamepad unlock) → main menu → ride → results.
@@ -364,11 +380,46 @@ export class MainGameScene implements GameScene {
     if (!background) params.set('cam', this.career.data.options.camera);
     params.set('rider', this.availableRiders()[this.riderIndex]!.id);
     params.set('board', this.availableBoards()[this.boardIndex]!.id);
+    // create-a-surfer colours ride along as rrggbb params
+    const custom = this.career.data.custom;
+    for (const [key, param] of [
+      ['suit', 'suit'],
+      ['accent', 'accent'],
+      ['board', 'boardColour'],
+      ['boardAccent', 'boardAccent'],
+    ] as const) {
+      const v = custom[key];
+      if (v) params.set(param, v.replace('#', ''));
+      else params.delete(param);
+    }
     this.ride = new RideScene();
     this.ride.audio = this.audio;
     if (!background) this.ride.onPhoto = (p) => this.savePhoto(p);
     this.ride.init({ ...this.ctx, params });
     if (background) this.ride.attract = true;
+  }
+
+  /** A create-a-surfer row: cycles a colour through the palette, the first stop being the rider's own. */
+  private colourRow(key: keyof CareerData['custom'], label: string): MenuItem {
+    return {
+      id: `colour-${key}`,
+      label,
+      value: () => {
+        const v = this.career.data.custom[key];
+        return v ? (PALETTE.find((p) => p.hex === v)?.name ?? v) : 'as the surfer wears it';
+      },
+      onAdjust: (d) => {
+        const v = this.career.data.custom[key];
+        const i = v ? PALETTE.findIndex((p) => p.hex === v) : -1;
+        const n = PALETTE.length + 1; // the extra stop is "none"
+        const next = (i + 1 + d + n) % n; // 0 = none, 1… = palette
+        if (next === 0) delete this.career.data.custom[key];
+        else this.career.data.custom[key] = PALETTE[next - 1]!.hex;
+        this.career.save();
+        this.audio.uiMove();
+        this.startRide(true);
+      },
+    };
   }
 
   private availableRiders() {
@@ -553,6 +604,10 @@ export class MainGameScene implements GameScene {
             this.startRide(true);
           },
         },
+        this.colourRow('suit', 'Suit colour'),
+        this.colourRow('accent', 'Suit accent'),
+        this.colourRow('board', 'Board colour'),
+        this.colourRow('boardAccent', 'Board stripe'),
       ],
       'Stick/arrows: move · A/Space: select · ←→: change · Esc/Start pauses in-game · M mutes · F fullscreen',
     );
