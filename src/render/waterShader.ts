@@ -123,13 +123,23 @@ void main() {
   // the original's signature look: colour ramps from deep blue to teal with height up the face
   float h = clamp(vHeight, 0.0, 1.0);
   vec3 body = mix(uDeepColor, uShallowColor, smoothstep(0.0, 1.0, pow(h, 0.75)));
-  // thin water near the lip lets sun through (cheap translucency)
+  // thin water near the lip lets sun through (cheap translucency); the very edge of the lip glows
+  // brighter still, which is what makes it read as a thick sheet rather than a line
   float thin = smoothstep(0.55, 1.0, h) * (1.0 - vFoam);
   float back = pow(max(dot(-L, V), 0.0), 1.8);
   body += uGlowColor * thin * (0.35 + 0.9 * back);
+  body += mix(uGlowColor, vec3(1.0), 0.45) * smoothstep(0.93, 1.0, h) * (1.0 - vFoam) * (0.25 + 0.5 * back);
   // inside the barrel: darker, bluer, less sky
   float tubeDark = vTube * 0.55 + smoothstep(0.75, 1.0, vV) * vFace * 0.15;
   body *= 1.0 - tubeDark * 0.6;
+  // …but the roof is thin water lit from behind: light comes through where the view looks toward
+  // the sun through the wave, strongest high on the interior, with a slow caustic shimmer
+  float through = pow(max(dot(-L, V), 0.0), 2.5);
+  float interior = vTube * (0.3 + 0.7 * smoothstep(0.5, 1.0, vV)) * (1.0 - vFoam);
+  float shimmer = 0.7 + 0.6 * fbm(vWorldPos.xz * 1.6 + vec2(uTime * 0.5, -uTime * 0.35));
+  body += uGlowColor * interior * (0.22 + 1.0 * through) * shimmer;
+  // and the floor of the barrel picks up a little of that green from above
+  body += uShallowColor * vTube * (1.0 - smoothstep(0.0, 0.5, vV)) * 0.12 * shimmer;
 
   // lighting
   vec3 diffuse = body * (0.42 + 0.58 * ndl);

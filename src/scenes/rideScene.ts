@@ -763,18 +763,21 @@ export class RideScene implements GameScene {
       if (hollow < 0.2 && Math.random() > 0.35) continue;
       this.wave.position(u, 1, this.sprayTmp);
       const sheet = hollow * hollow;
-      // the sheet: forward (−z, with the lip) and up, big, short-lived
-      this.spray.emit(
-        this.sprayTmp.x,
-        this.sprayTmp.y + 0.2,
-        this.sprayTmp.z - 0.3,
-        dir * (1 + k * 2),
-        1.5 + sheet * 3.5,
-        -3 - sheet * 4,
-        (0.9 + Math.random() * (1.4 + sheet * 1.6)) * (inTube ? 0.6 : 1),
-        0.5 + Math.random() * 0.5,
-        1.6,
-      );
+      // the sheet: forward (−z, with the lip) and up, big, short-lived. From inside the barrel the
+      // forward sheet would be thrown straight at the lens, so only the blowback is kept there.
+      if (!inTube) {
+        this.spray.emit(
+          this.sprayTmp.x,
+          this.sprayTmp.y + 0.2,
+          this.sprayTmp.z - 0.3,
+          dir * (1 + k * 2),
+          1.5 + sheet * 3.5,
+          -3 - sheet * 4,
+          0.9 + Math.random() * (1.4 + sheet * 1.6),
+          0.5 + Math.random() * 0.5,
+          1.6,
+        );
+      }
       // the blowback: a lighter mist lifted up and back over the crest
       if (Math.random() < 0.5 + sheet * 0.5) this.spray.emit(this.sprayTmp.x, this.sprayTmp.y + 0.5, this.sprayTmp.z + 0.4, dir * 1.5, 2.2 + sheet * 2, 1.5 + sheet * 1.5, 1.4 + Math.random() * 2.2, 1.0 + Math.random() * 0.8, 2.2);
     }
