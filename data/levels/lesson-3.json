@@ -1,15 +1,34 @@
 {
   "id": "lesson-3",
   "beach": "sandbar",
-  "name": "Lesson 3 · Spin and land",
+  "name": "Lesson 3 \u00b7 Spin and land",
   "order": 103,
   "lesson": true,
   "waveFt": 8,
   "seconds": 120,
   "intro": "Rotation multiplies the score. Stop spinning in time to land clean.",
-  "unlocks": ["lesson-4"],
+  "unlocks": [
+    "lesson-4"
+  ],
   "goals": [
-    { "id": "spin360", "type": "lesson", "skill": "spin", "value": 360, "count": 1, "required": true, "hint": "Launch big, then hold Q or E (LB / RB) to spin. Release with the nose pointing back down the line" },
-    { "id": "spin540", "type": "lesson", "skill": "spin", "value": 540, "count": 1, "required": true, "hint": "A 540 lands fakie: that is fine, the judge accepts either way round" }
+    {
+      "id": "spin360",
+      "type": "lesson",
+      "skill": "spin",
+      "value": 360,
+      "count": 1,
+      "required": true,
+      "hint": "Push the sticks opposite ways to spin the board, and crouch to spin faster. Stop the twist to land straight",
+      "hintClassic": "Launch big, then hold Q or E (LB / RB) to spin. Release with the nose pointing back down the line"
+    },
+    {
+      "id": "spin540",
+      "type": "lesson",
+      "skill": "spin",
+      "value": 540,
+      "count": 1,
+      "required": true,
+      "hint": "A 540 lands fakie: that is fine, the judge accepts either way round"
+    }
   ]
 }

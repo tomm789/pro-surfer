@@ -61,11 +61,14 @@ describe('lessons', () => {
 
   it('lesson 1: stand, reach speed, ride without wiping out', () => {
     const r = rig('lesson-1');
-    expect(r.goals.activeHint()).toContain('stand');
+    // the default hint teaches the dual-stick scheme; the classic wording is kept alongside it
+    expect(r.goals.activeHint()).toContain('sticks');
+    expect(r.goals.activeHint('classic')).toContain('stand');
     r.riderEvents.emit('stand', { u: 0, v: 0.3 });
     r.step();
     expect(r.done).toContain('stand');
-    expect(r.goals.activeHint()).toContain('pump');
+    expect(r.goals.activeHint()).toContain('rhythm');
+    expect(r.goals.activeHint('classic')).toContain('pump');
     r.setSpeed(11.5);
     r.step();
     expect(r.done).toContain('speed');

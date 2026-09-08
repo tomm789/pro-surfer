@@ -6,11 +6,37 @@
   "lesson": true,
   "waveFt": 7,
   "seconds": 120,
-  "intro": "Speed, then the lip. Hold jump to load, release as you hit the lip.",
-  "unlocks": ["lesson-3"],
+  "intro": "Speed, then the lip. Compress as you climb, explode as you hit it.",
+  "unlocks": [
+    "lesson-3"
+  ],
   "goals": [
-    { "id": "air", "type": "lesson", "skill": "air", "count": 1, "required": true, "hint": "Pump for speed, hold Space (A) while steering up the face, release at the lip" },
-    { "id": "grab", "type": "lesson", "skill": "trick", "section": "air", "count": 1, "required": true, "hint": "In the air, hold K (B) with a stick direction for a grab. Let go before you land" },
-    { "id": "airs", "type": "lesson", "skill": "air", "count": 3, "required": true, "hint": "Land square to the wave: inside 20° is Perfect, past 45° is a wipeout" }
+    {
+      "id": "air",
+      "type": "lesson",
+      "skill": "air",
+      "count": 1,
+      "required": true,
+      "hint": "Crouch as you climb (both sticks down), then flick both up right at the lip — that is your pop",
+      "hintClassic": "Pump for speed, hold Space (A) while steering up the face, release at the lip"
+    },
+    {
+      "id": "grab",
+      "type": "lesson",
+      "skill": "trick",
+      "section": "air",
+      "count": 1,
+      "required": true,
+      "hint": "In the air, hold K (B) with a stick direction for a grab. Let go before you land"
+    },
+    {
+      "id": "airs",
+      "type": "lesson",
+      "skill": "air",
+      "count": 3,
+      "required": true,
+      "hint": "Land with your legs loaded (sticks down) — a crouched landing forgives a lot more than a locked-out one",
+      "hintClassic": "Land square to the wave: inside 20° is Perfect, past 45° is a wipeout"
+    }
   ]
 }

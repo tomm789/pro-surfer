@@ -1,15 +1,34 @@
 {
   "id": "lesson-5",
   "beach": "sandbar",
-  "name": "Lesson 5 · Link and cash in",
+  "name": "Lesson 5 \u00b7 Link and cash in",
   "order": 105,
   "lesson": true,
   "waveFt": 8,
   "seconds": 150,
   "intro": "Tricks chain until you wipe out or cash in. Bank before the wave gets you.",
-  "unlocks": ["lesson-6"],
+  "unlocks": [
+    "lesson-6"
+  ],
   "goals": [
-    { "id": "chain3", "type": "lesson", "skill": "cashIn", "value": 3, "count": 1, "required": true, "hint": "Land three tricks back to back, then press Enter (R3) to bank the chain" },
-    { "id": "special", "type": "lesson", "skill": "special", "count": 1, "required": true, "hint": "Fill the meter until it flashes, then pull your special (see the Trick Book)" }
+    {
+      "id": "chain3",
+      "type": "lesson",
+      "skill": "cashIn",
+      "value": 3,
+      "count": 1,
+      "required": true,
+      "hint": "Link three turns without falling, then press Enter (R3) to bank them",
+      "hintClassic": "Land three tricks back to back, then press Enter (R3) to bank the chain"
+    },
+    {
+      "id": "special",
+      "type": "lesson",
+      "skill": "special",
+      "count": 1,
+      "required": true,
+      "hint": "Fill the meter until it flashes, then reverse your rail mid-turn for a roundhouse",
+      "hintClassic": "Fill the meter until it flashes, then pull your special (see the Trick Book)"
+    }
   ]
 }

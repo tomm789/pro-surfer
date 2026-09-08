@@ -1,15 +1,35 @@
 {
   "id": "lesson-4",
   "beach": "sandbar",
-  "name": "Lesson 4 · Face tricks",
+  "name": "Lesson 4 \u00b7 Face tricks",
   "order": 104,
   "lesson": true,
   "waveFt": 7,
   "seconds": 120,
   "intro": "Snaps, cutbacks and slides score without leaving the wave.",
-  "unlocks": ["lesson-5"],
+  "unlocks": [
+    "lesson-5"
+  ],
   "goals": [
-    { "id": "face", "type": "lesson", "skill": "trick", "section": "face", "count": 2, "required": true, "hint": "Double-tap a stick direction with J (X) held: up-up snaps off the lip, down-down cuts back" },
-    { "id": "face4", "type": "lesson", "skill": "trick", "section": "face", "count": 5, "required": true, "hint": "Vary the tricks: repeating one is worth less each time" }
+    {
+      "id": "face",
+      "type": "lesson",
+      "skill": "trick",
+      "section": "face",
+      "count": 2,
+      "required": true,
+      "hint": "Turns are not buttons here. Lean both sticks toward the wave and hold it \u2014 the harder the lean, the bigger the turn",
+      "hintClassic": "Double-tap a stick direction with J (X) held: up-up snaps off the lip, down-down cuts back"
+    },
+    {
+      "id": "face4",
+      "type": "lesson",
+      "skill": "trick",
+      "section": "face",
+      "count": 5,
+      "required": true,
+      "hint": "Where you turn decides what it is called: down the bottom is a bottom turn, up at the lip is a snap, away from the wave is a cutback",
+      "hintClassic": "Vary the tricks: repeating one is worth less each time"
+    }
   ]
 }

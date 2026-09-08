@@ -1,0 +1,26 @@
+{
+  "id": "wavepool",
+  "name": "Long Pool",
+  "region": "Inland Basin",
+  "breakDirection": "right",
+  "hollowness": 0.62,
+  "breakSpeed": 7.0,
+  "faceAspect": 1.15,
+  "tube": true,
+  "sections": {
+    "rate": 0,
+    "severity": 0,
+    "doubleUp": false
+  },
+  "hazards": [],
+  "look": {
+    "sky": "day",
+    "waterDeep": "#0d4f63",
+    "waterShallow": "#3ec4b4",
+    "sunAzimuthDeg": 200,
+    "sunElevationDeg": 42,
+    "landmarks": [
+      "pool"
+    ]
+  }
+}

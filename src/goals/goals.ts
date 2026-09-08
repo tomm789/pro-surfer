@@ -14,8 +14,10 @@ const base = {
   required: z.boolean().default(false),
   reward: z.string().optional(),
   label: z.string().optional(),
-  /** Shown on the HUD while this is the next goal to do (lessons). */
+  /** Shown on the HUD while this is the next goal to do (lessons). Written for the dual-stick scheme. */
   hint: z.string().optional(),
+  /** The same hint for the classic single-stick scheme, when the two differ. */
+  hintClassic: z.string().optional(),
 };
 
 export const GoalSchema = z.discriminatedUnion('type', [
@@ -230,9 +232,13 @@ export class GoalTracker {
     }
   }
 
-  /** The hint of the next unfinished goal that has one (lessons), else null. */
-  activeHint(): string | null {
-    for (const p of this.progress) if (!p.done && p.goal.hint) return p.goal.hint;
+  /** The hint of the next unfinished goal that has one (lessons), for the scheme in use. */
+  activeHint(scheme: 'dual' | 'classic' = 'dual'): string | null {
+    for (const p of this.progress) {
+      if (p.done) continue;
+      const h = scheme === 'classic' ? (p.goal.hintClassic ?? p.goal.hint) : p.goal.hint;
+      if (h) return h;
+    }
     return null;
   }
 

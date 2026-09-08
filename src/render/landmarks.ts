@@ -62,18 +62,70 @@ function palms(rng: () => number, count: number, spread: number): THREE.Group {
   return g;
 }
 
+/**
+ * The foil carriage that drives a pool wave: a gantry running on a rail with a strut and wedge in the
+ * water. It travels ahead of the wave, which peels back from it — that is what makes a pool wave endless.
+ */
+function foilTrain(): THREE.Group {
+  const g = new THREE.Group();
+  const steel = mat(0x8d99a6, 0.55);
+  const dark = mat(0x394655, 0.7);
+  const accent = mat(0xffb03a, 0.6);
+  // carriage box on the rail
+  const body = new THREE.Mesh(new THREE.BoxGeometry(14, 2.6, 3.4), steel);
+  body.position.set(0, 5.4, 0);
+  g.add(body);
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(14.2, 0.5, 3.6), accent);
+  stripe.position.set(0, 6.2, 0);
+  g.add(stripe);
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.2, 3.2), dark);
+  cab.position.set(-5, 7.6, 0);
+  g.add(cab);
+  // legs down to the water
+  for (const dx of [-5.5, 0, 5.5]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 5, 0.5), dark);
+    leg.position.set(dx, 2.6, 0);
+    g.add(leg);
+  }
+  // the strut and the foil wedge that displaces the water
+  const strut = new THREE.Mesh(new THREE.BoxGeometry(0.7, 5, 0.6), dark);
+  strut.position.set(2.5, 2.2, -3.2);
+  strut.rotation.x = -0.18;
+  g.add(strut);
+  const wedge = new THREE.Mesh(new THREE.BoxGeometry(9, 1.1, 2.4), dark);
+  wedge.position.set(0.5, 0.2, -4.6);
+  wedge.rotation.y = 0.22;
+  g.add(wedge);
+  // a plume of white water off the foil
+  const plume = new THREE.Mesh(new THREE.SphereGeometry(1.8, 8, 6), new THREE.MeshStandardMaterial({ color: 0xeaf6ff, roughness: 1, transparent: true, opacity: 0.72 }));
+  plume.position.set(-3.5, 0.5, -4.4);
+  plume.scale.set(2.4, 0.5, 1.1);
+  g.add(plume);
+  return g;
+}
+
 export class Landmarks {
   readonly group = new THREE.Group();
   private tiles: THREE.Group[] = [];
   private tileTemplate: () => THREE.Group;
+  /** Pool only: the carriage that drives the wave, moved along the rail each frame. */
+  private foil: THREE.Group | null = null;
 
   constructor(beach: Beach) {
     const preset = SKY_PRESETS[beach.look.sky];
     const kinds = new Set(beach.look.landmarks);
     const rng = seeded(beach.id.length * 7919 + 17);
+    if (kinds.has('pool')) {
+      this.foil = foilTrain();
+      this.group.add(this.foil);
+    }
     // template of one coastline tile
     this.tileTemplate = () => {
       const tile = new THREE.Group();
+      if (kinds.has('pool')) {
+        this.poolTile(tile, rng);
+        return tile;
+      }
       // beach sand strip + dunes
       const sand = new THREE.Mesh(new THREE.BoxGeometry(REPEAT + 2, 1.2, 90), mat(kinds.has('icebergs') ? 0xe8f4ff : 0xe6d3a3, 1));
       sand.position.set(0, 0.2, SHORE_Z - 45);
@@ -205,10 +257,74 @@ export class Landmarks {
     }
   }
 
-  /** Keep three tiles around the camera along x. */
-  update(cameraX: number): void {
+  /**
+   * One repeating length of the pool: parallel banks close in on both sides so the horizon is land
+   * rather than open ocean, with the rail the carriage runs on down the seaward side.
+   */
+  private poolTile(tile: THREE.Group, rng: () => number): void {
+    const L = REPEAT + 2;
+    const concrete = mat(0xc9c4b6, 0.95);
+    const grass = mat(0x5c8a48, 1);
+    const deck = mat(0xa8a094, 0.95);
+    // seaward bank: coping, rail bed, and the land behind it
+    const farCope = new THREE.Mesh(new THREE.BoxGeometry(L, 2.4, 8), concrete);
+    farCope.position.set(0, 0.6, 62);
+    tile.add(farCope);
+    const farLand = new THREE.Mesh(new THREE.BoxGeometry(L, 2.2, 320), grass);
+    farLand.position.set(0, 0.7, 226);
+    tile.add(farLand);
+    for (const dz of [-1.1, 1.1]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(L, 0.22, 0.3), mat(0x6f7a86, 0.5));
+      rail.position.set(0, 2.0, 66 + dz);
+      tile.add(rail);
+    }
+    const bed = new THREE.Mesh(new THREE.BoxGeometry(L, 0.6, 5), deck);
+    bed.position.set(0, 1.6, 66);
+    tile.add(bed);
+    // shoreward bank: stepped deck the wave runs past, then a spectator berm
+    const nearCope = new THREE.Mesh(new THREE.BoxGeometry(L, 2.0, 10), concrete);
+    nearCope.position.set(0, 0.5, -58);
+    tile.add(nearCope);
+    for (let i = 0; i < 3; i++) {
+      const step = new THREE.Mesh(new THREE.BoxGeometry(L, 1.1, 6), deck);
+      step.position.set(0, 1.2 + i * 0.9, -66 - i * 5.5);
+      tile.add(step);
+    }
+    const berm = new THREE.Mesh(new THREE.BoxGeometry(L, 3.0, 300), grass);
+    berm.position.set(0, 1.4, -240);
+    tile.add(berm);
+    // a few marquees and flags along the near bank so the length of the pool reads
+    for (let i = 0; i < 3; i++) {
+      const x = (rng() - 0.5) * REPEAT * 0.85;
+      const canopy = new THREE.Mesh(new THREE.ConeGeometry(4.2, 2.2, 4), mat(rng() > 0.5 ? 0xf0f4f7 : 0x3ec4b4, 0.8));
+      canopy.position.set(x, 5.2, -84);
+      canopy.rotation.y = Math.PI / 4;
+      tile.add(canopy);
+      for (const dx of [-2.6, 2.6]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 4, 6), mat(0xd8d4c8, 0.7));
+        post.position.set(x + dx, 4.2, -84);
+        tile.add(post);
+      }
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 9, 6), mat(0xe8e4d8, 0.6));
+      pole.position.set(x + 14, 6.6, -72);
+      tile.add(pole);
+      const flag = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.2, 0.05), mat(0xff7a3d, 0.8));
+      flag.position.set(x + 15.2, 10.2, -72);
+      tile.add(flag);
+    }
+    tile.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).receiveShadow = false;
+    });
+  }
+
+  /**
+   * Keep three tiles around the camera along x, and put the foil carriage where it belongs:
+   * ahead of the wave, which peels back from it.
+   */
+  update(cameraX: number, foilX?: number): void {
     const base = Math.floor(cameraX / REPEAT) - 1;
     for (let i = 0; i < this.tiles.length; i++) this.tiles[i]!.position.x = (base + i) * REPEAT + REPEAT / 2;
+    if (this.foil && foilX !== undefined) this.foil.position.set(foilX, 0, 12);
   }
 
   dispose(): void {

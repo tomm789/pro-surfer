@@ -259,7 +259,8 @@ export class MainGameScene implements GameScene {
   }
 
   private beaches = (() => {
-    const order = ['sandbar', 'pointbreak', 'reefpass', 'cove', 'slab', 'outer'];
+    // the pool is the home venue and the default; the ocean breaks stay selectable
+    const order = ['wavepool', 'sandbar', 'pointbreak', 'reefpass', 'cove', 'slab', 'outer'];
     return listBeaches().sort((a, b) => (order.indexOf(a.id) + 1 || 99) - (order.indexOf(b.id) + 1 || 99));
   })();
 

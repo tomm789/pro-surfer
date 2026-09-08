@@ -84,6 +84,33 @@
     "airTwistScale": 1.5,
     "landAbsorb": 0.4
   },
+  "recognizer": {
+    "engageRail": 0.4,
+    "releaseRail": 0.18,
+    "minGapSeconds": 0.18,
+    "maxSeconds": 2.4,
+    "minSwingRad": 0.35,
+    "minYawRad": 0.3,
+    "fullSwingRad": 1.3,
+    "perfectQuality": 0.7,
+    "lipV": 0.82,
+    "highV": 0.62,
+    "bottomV": 0.3,
+    "slideSeconds": 0.25,
+    "slideYawRad": 0.5,
+    "laybackRail": 0.85,
+    "cutbackSeconds": 0.7,
+    "worth": {
+      "bottomTurn": 0.8,
+      "snap": 1.35,
+      "offTheLip": 1.6,
+      "cutback": 1.2,
+      "roundhouse": 1.9,
+      "tailSlide": 1.3,
+      "layback": 1.7,
+      "carve": 1.0
+    }
+  },
   "air": {
     "gravity": 9.81,
     "launchSpeedScale": 0.25,

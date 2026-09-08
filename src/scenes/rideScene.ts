@@ -17,6 +17,7 @@ import { ChaseCamera } from '@/render/chaseCamera';
 import { InputManager } from '@/input/inputManager';
 import { KEYMAP_DUAL } from '@/input/keymaps';
 import { TrickSystem, type TrickEvents } from '@/tricks/executor';
+import { TrickRecognizer } from '@/tricks/recognizer';
 import { RunController } from '@/scoring/run';
 import { Hud, type HudState } from '@/ui/hud';
 import type { AudioManager } from '@/audio/audio';
@@ -111,6 +112,7 @@ export class RideScene implements GameScene {
   private highlight = new HighlightTracker();
   private frame = 0;
   private director: ReplayDirector | null = null;
+  private recognizer: TrickRecognizer | null = null;
   private paramsString = '';
   private seed = 1;
   private replayChrome: HTMLElement[] = [];
@@ -179,6 +181,7 @@ export class RideScene implements GameScene {
     for (const k of ['spin', 'speed', 'air', 'balance'] as const) stats[k] = Math.max(0.05, Math.min(1, stats[k] * handicap));
     this.rider = new RiderSim(this.wave, TUNING, stats, this.events, undefined, new Rng(ctx.seed + 7));
     this.tricks = new TrickSystem(this.rider, TUNING, this.trickEvents, this.events);
+    if (this.rider.controls === 'dual') this.recognizer = new TrickRecognizer(TUNING, this.trickEvents);
     // specials: the rider's own set plus any learned through career rewards; everything else is open
     const learned = (ctx.params.get('learned') ?? '').split(',').filter(Boolean);
     const specialsAllowed = new Set([...riderDef.specials, ...learned]);
@@ -557,6 +560,8 @@ export class RideScene implements GameScene {
       this.wave.step(dt, this.rider.state === 'wipeout' ? null : this.rider.u);
       this.rider.step(dt, input);
       this.tricks.step(dt, input);
+      // with the sticks driving the body, face turns are recognised from the physics rather than combos
+      this.recognizer?.step(dt, this.rider);
     }
     this.run.step(dt, bank);
     this.highlight.step(this.frame, this.run.chain.open);
@@ -703,7 +708,7 @@ export class RideScene implements GameScene {
       s.debug = '';
       return;
     }
-    const lessonHint = this.goals?.activeHint() ?? null;
+    const lessonHint = this.goals?.activeHint(this.rider.controls) ?? null;
     s.hint =
       lessonHint ??
       (this.controlsHint
@@ -731,7 +736,8 @@ export class RideScene implements GameScene {
     this.uniforms.uAmpMask0.value = (this.waveMesh.zMin + this.waveMesh.zMax) / 2;
     this.uniforms.uAmpMask1.value = (this.waveMesh.zMax - this.waveMesh.zMin) / 2 - 8;
     this.objectViews.update(this.objects, this.wave);
-    this.landmarks.update(this.cam.camera.position.x);
+    // the pool's carriage runs ahead of the curl: the wave peels back from the foil
+    this.landmarks.update(this.cam.camera.position.x, this.wave.params.direction * (this.wave.curlU + TUNING.wave.faceLengthAhead * 0.8));
     this.env.update(this.cam.camera.position, this.riderView.group.position);
     if (this.viewport) {
       const size = this.renderer.getSize(new THREE.Vector2());

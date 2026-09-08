@@ -1,7 +1,7 @@
 {
   "id": "lesson-7",
   "beach": "pointbreak",
-  "name": "Lesson 7 · Floaters and sections",
+  "name": "Lesson 7 \u00b7 Floaters and sections",
   "order": 107,
   "lesson": true,
   "waveFt": 7,
@@ -9,7 +9,22 @@
   "intro": "Sections close out ahead of you. Float over the whitewater or get around it.",
   "unlocks": [],
   "goals": [
-    { "id": "floater", "type": "lesson", "skill": "floater", "count": 1, "required": true, "hint": "When a section warning shows, press L (Y) as you reach the whitewater to float over it" },
-    { "id": "survive", "type": "sectionSurvival", "count": 2, "required": true, "hint": "Two sections survived: floater over, or pump past before they close" }
+    {
+      "id": "floater",
+      "type": "lesson",
+      "skill": "floater",
+      "count": 1,
+      "required": true,
+      "hint": "Unweight both feet (both sticks up) as you reach the whitewater to float over the section",
+      "hintClassic": "When a section warning shows, press L (Y) as you reach the whitewater to float over it"
+    },
+    {
+      "id": "survive",
+      "type": "sectionSurvival",
+      "count": 2,
+      "required": true,
+      "hint": "Two sections survived: float over, or drive past on the nose before they close",
+      "hintClassic": "Two sections survived: floater over, or pump past before they close"
+    }
   ]
 }
