@@ -99,9 +99,10 @@ describe('trick recognizer', () => {
     const r = rig();
     // build speed, then swing the rail from the bottom to the top and back, twice
     r.run(2.5, () => feet([0, 1], [0, -1]));
-    r.run(6, (t) => {
-      const phase = t % 2.4;
-      const rail = phase < 1.2 ? 1 : -1;
+    // swing the rail from the bottom of the face up and back, staying below the lip so the rider
+    // keeps carving rather than launching
+    r.run(10, () => {
+      const rail = r.rider.v < 0.35 ? 1 : -1;
       const press = r.rider.headingDeg > 0 ? 1 : -1;
       return feet([rail, press], [rail, press]);
     });

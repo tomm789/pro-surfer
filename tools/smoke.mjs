@@ -130,6 +130,36 @@ try {
   await backToBoat();
   await check('final menu', 'menu');
 
+  // A scored run through the real game shell. The menu walk above only proves the flows exist; this
+  // proves the whole chain works — sticks → stance → recognised turns → chain → score.
+  await goto(2); // free surf
+  await press('Enter');
+  await stepN(120);
+  const script = [{ t: 0.4, input: { backY: -1, frontY: -1 } }, { t: 0.8, input: { backY: 1, frontY: 1 } }];
+  let t = 2;
+  while (t < 34) {
+    for (const [rail, press2] of [
+      [0.55, -1],
+      [0.55, 1],
+      [-0.5, -1],
+      [-0.5, 1],
+    ]) {
+      script.push({ t: +t.toFixed(2), input: { backX: rail, frontX: rail, backY: press2, frontY: press2 } });
+      t += 0.5;
+    }
+  }
+  await page.evaluate((s) => window.__lineup.setInput({ script: s }), script);
+  await page.evaluate(() => window.__lineup.stepTo(window.__lineup.time() + 34));
+  const scored = await page.evaluate(() => {
+    const st = window.__lineup.state();
+    const ride = st.ride ?? {};
+    return { score: ride.run?.score ?? 0, events: (ride.events ?? []).filter((e) => e.includes('trickLand')).length };
+  });
+  const scoreOk = scored.score > 0 && scored.events > 0;
+  if (!scoreOk) failures++;
+  rows.push(`${scoreOk ? 'ok  ' : 'FAIL'} scored run: score=${scored.score} recognised=${scored.events}`);
+  await page.evaluate(() => window.__lineup.setInput(null));
+
   console.log(rows.join('\n'));
   if (errors.length) {
     failures += errors.length;

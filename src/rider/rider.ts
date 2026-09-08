@@ -378,7 +378,10 @@ export class RiderSim {
     }
     if (releasedJump) this.jumpLoad = 0;
     const F = this.tuning.floater;
-    const unweighted = dual && st.compression < -0.4;
+    // Unweighting is also the top half of a pump, so it only starts a floater when there is actually
+    // foam to float over. Otherwise the slide button is the deliberate way in (docs/MECHANICS.md §6).
+    const overFoam = this.wave.fields(this.u).broken > 0.35 || this.wave.distanceToBreak(this.u).inside;
+    const unweighted = dual && st.compression < -0.4 && overFoam;
     if ((input.slide || unweighted) && this.v >= F.entryMinV && sinH > -0.1) {
       this.startFloater();
       return;
@@ -528,7 +531,9 @@ export class RiderSim {
     this.heading = 0;
     this.speed *= 1 - F.speedLossPerSecond * dt;
     this.u += this.speed * dt;
-    const done = !input.slide || this.floaterSeconds >= F.maxSeconds || this.speed < R.minStandSpeed;
+    // held with the slide button, or by staying unweighted on the sticks
+    const holding = input.slide || (this.dual && this.stanceModel.state.compression < -0.2);
+    const done = !holding || this.floaterSeconds >= F.maxSeconds || this.speed < R.minStandSpeed;
     if (done) this.endFloater();
   }
 

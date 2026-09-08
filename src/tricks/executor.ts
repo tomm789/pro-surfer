@@ -196,9 +196,11 @@ export class TrickSystem {
     for (const a of this.pendingAir) {
       this.events.emit('trickLand', { trick: a.trick, section: 'air', aheadOfCurl: this.rider.aheadOfCurl, rotation, landing: rating, atLip: false });
     }
-    if (!this.pendingAir.length && spins180 > 0) {
-      // a plain rotation with no grab is still a trick: synthesise it from the catalogue-free "spin" entry
-      this.events.emit('trickLand', { trick: spinTrick(spins180, this.tuning.scoring.base.plainSpin), section: 'air', aheadOfCurl: this.rider.aheadOfCurl, rotation, landing: rating, atLip: false });
+    if (!this.pendingAir.length) {
+      // A plain air with no grab and no rotation is still a manoeuvre — getting off the lip and landing
+      // it is the whole point of the pop — so it scores, modestly, as itself.
+      const trick = spins180 > 0 ? spinTrick(spins180, this.tuning.scoring.base.plainSpin) : plainAir(this.tuning.scoring.base.plainSpin);
+      this.events.emit('trickLand', { trick, section: 'air', aheadOfCurl: this.rider.aheadOfCurl, rotation, landing: rating, atLip: false });
     }
     this.pendingAir = [];
   }
@@ -255,6 +257,21 @@ export class TrickSystem {
 }
 
 /** Synthetic rotation trick (180/360/540…). Not in the data file because its value is computed. */
+/** A straight air off the lip: no grab, no rotation, just the pop and a clean landing. */
+export function plainAir(base: number): Trick {
+  return {
+    id: 'air',
+    name: 'Air',
+    section: 'air',
+    input: { kind: 'dir', button: 'carve', direction: 'up' },
+    base,
+    meter: 0.08,
+    duration: 0,
+    special: false,
+    icon: 'air',
+  };
+}
+
 /** A rotation-only air: base from tuning (scoring.base.plainSpin), the rotation factor does the rest. */
 export function spinTrick(spins180: number, base = 0): Trick {
   const deg = spins180 * 180;

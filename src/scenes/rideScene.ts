@@ -181,7 +181,6 @@ export class RideScene implements GameScene {
     for (const k of ['spin', 'speed', 'air', 'balance'] as const) stats[k] = Math.max(0.05, Math.min(1, stats[k] * handicap));
     this.rider = new RiderSim(this.wave, TUNING, stats, this.events, undefined, new Rng(ctx.seed + 7));
     this.tricks = new TrickSystem(this.rider, TUNING, this.trickEvents, this.events);
-    if (this.rider.controls === 'dual') this.recognizer = new TrickRecognizer(TUNING, this.trickEvents);
     // specials: the rider's own set plus any learned through career rewards; everything else is open
     const learned = (ctx.params.get('learned') ?? '').split(',').filter(Boolean);
     const specialsAllowed = new Set([...riderDef.specials, ...learned]);
@@ -256,6 +255,8 @@ export class RideScene implements GameScene {
     // dual-stick is the default scheme (docs/MECHANICS.md); classic stays available
     this.rider.controls = ctx.params.get('controls') === 'classic' ? 'classic' : 'dual';
     this.rider.assists = ctx.params.get('assists') !== '0';
+    // face turns come from the physics rather than button combos, so this only exists for the dual scheme
+    if (this.rider.controls === 'dual') this.recognizer = new TrickRecognizer(TUNING, this.trickEvents);
     if (this.rider.controls === 'dual') this.inputManager.setKeymap(KEYMAP_DUAL);
     this.cam = new ChaseCamera(TUNING);
     const camParam = ctx.params.get('cam');
