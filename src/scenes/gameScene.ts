@@ -19,6 +19,7 @@ import { listLevels, listLessons, getLevel } from '@/goals/levels';
 import { getBeach } from '@/world/beaches';
 import { listRiders, listBoards, getRider, getBoard, effectiveStats, statBar } from '@/world/roster';
 import { TrickBookScreen } from '@/ui/trickBook';
+import { ControllerTestScreen } from '@/ui/controllerTest';
 import { TUNING as T } from '@/core/tuning';
 
 type Flow = 'boot' | 'menu' | 'ride' | 'paused' | 'results' | 'split' | 'interstitial' | 'replay';
@@ -51,6 +52,7 @@ export class MainGameScene implements GameScene {
   private levelId: string | null = null;
   private careerMenu: MenuScreen | null = null;
   private trickBook: TrickBookScreen | null = null;
+  private controllerTest: ControllerTestScreen | null = null;
   private riderIndex = 0;
   private boardIndex = 0;
   private lastInput: Readonly<RiderInput> = NEUTRAL_INPUT;
@@ -541,6 +543,15 @@ export class MainGameScene implements GameScene {
           },
         },
         {
+          id: 'ctest',
+          label: 'Controller test',
+          value: () => (this.input.gamepadName ? this.input.gamepadName.slice(0, 28) : 'keyboard'),
+          onSelect: () => {
+            this.audio.uiSelect();
+            this.openControllerTest();
+          },
+        },
+        {
           id: 'full',
           label: 'Fullscreen',
           value: () => (document.fullscreenElement ? 'on' : 'off'),
@@ -564,6 +575,22 @@ export class MainGameScene implements GameScene {
     );
     this.careerMenu.prime(this.lastInput);
     this.careerMenu.onBack = () => this.openMenu();
+  }
+
+  /** The controller test reads the dual keymap whatever the chosen scheme, so both sticks show from the keyboard. */
+  private openControllerTest(): void {
+    this.careerMenu?.dispose();
+    this.careerMenu = null;
+    this.input.setKeymap(KEYMAP_DUAL);
+    this.controllerTest?.dispose();
+    this.controllerTest = new ControllerTestScreen(this.ctx.uiRoot, () => this.input.gamepadName);
+    this.controllerTest.prime(this.lastInput);
+    this.controllerTest.onBack = () => {
+      this.controllerTest?.dispose();
+      this.controllerTest = null;
+      this.applyScheme();
+      this.openOptions();
+    };
   }
 
   private runSeconds: number | null = null;
@@ -912,6 +939,7 @@ export class MainGameScene implements GameScene {
         this.careerMenu?.update(inp, dt);
         this.trickBook?.update(inp, dt);
         this.scrapbookScreen?.update(inp, dt);
+        this.controllerTest?.update(inp, dt);
         break;
       case 'ride': {
         const pausePressed = inp.pause && !this.prevPause;
@@ -983,6 +1011,7 @@ export class MainGameScene implements GameScene {
     this.pause?.dispose();
     this.results?.dispose();
     this.trickBook?.dispose();
+    this.controllerTest?.dispose();
     this.boot?.dispose();
     this.split?.dispose();
     this.input.detach(window);

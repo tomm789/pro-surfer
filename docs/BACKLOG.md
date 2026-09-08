@@ -55,7 +55,7 @@ The pool has zones (`beach.zones`): a lap passes through a barrel section, a wal
 
 ## P2 — platform and polish
 
-- [ ] Gamepad remapping UI and a keyboard remapping screen (`src/input/keymaps.ts`).
+- [ ] Gamepad remapping UI and a keyboard remapping screen (`src/input/keymaps.ts`). Options → Controller test already shows what the pad sends (both sticks raw and deadzoned, the five stance quantities, every button), which is the first thing to open with a new pad.
 - [ ] Safari check: audio unlock, gamepad rumble absence, WebGL2 performance on Apple GPUs at 2× pixel ratio.
 - [ ] Native macOS wrapper (Tauri, `src-tauri`), signed and notarised, with fullscreen and gamepad passthrough.
 - [ ] Save slots and export/import of the career save.

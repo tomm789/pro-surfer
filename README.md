@@ -19,7 +19,7 @@ Or just play the hosted build: <https://line-up-surf.vercel.app> (redeploys on e
 
 ## Controls — each stick is a foot
 
-A gamepad is strongly recommended. **Left stick is your back foot, right stick is your front foot. Down presses that foot into the board, up unweights it.** That one rule never inverts, and everything else follows from it:
+A gamepad is strongly recommended. **Left stick is your back foot, right stick is your front foot. Down presses that foot into the board, up unweights it.** That one rule never inverts, and everything else follows from it. Before a session, open **Options → Controller test**: it shows both sticks live (raw and deadzoned), the five quantities the game derives from them, and every button as you press it, so you can see exactly what the pad is sending.
 
 | What your thumbs do | What the board does |
 |---|---|
