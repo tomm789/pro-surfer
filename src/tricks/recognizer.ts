@@ -76,6 +76,7 @@ export class TrickRecognizer {
   private swing = 0;
   private reversed = false;
   private sinceLast = 10;
+  private releasedFor = 0;
   /** The most recent recognised turn, for the HUD and for tests. */
   last: TurnSummary | null = null;
 
@@ -114,6 +115,7 @@ export class TrickRecognizer {
         this.startHeading = r.heading;
         this.swing = 0;
         this.reversed = false;
+        this.releasedFor = 0;
       }
       return;
     }
@@ -127,8 +129,13 @@ export class TrickRecognizer {
     // a rail reversal inside one turn is the signature of a roundhouse
     if (Math.sign(rail) === -this.sign && Math.abs(rail) >= R.engageRail) this.reversed = true;
 
+    // The rail follows the feet continuously, so on its way to the other side it always passes
+    // through the release band. A turn therefore only ends once the rail has stayed released for a
+    // moment; if it comes back past the engage threshold the other way inside that window, the
+    // turn carries on as a reversal instead of ending and starting a new one.
     const released = Math.abs(rail) < R.releaseRail;
-    if (released || this.seconds >= R.maxSeconds) this.finish(r);
+    this.releasedFor = released ? this.releasedFor + dt : 0;
+    if (this.releasedFor >= R.releaseSeconds || this.seconds >= R.maxSeconds) this.finish(r);
   }
 
   private finish(r: RecognizerRider): void {
@@ -171,7 +178,10 @@ export class TrickRecognizer {
   private classify(r: RecognizerRider): TurnKind {
     const R = this.tuning.recognizer;
     const sliding = r.slideSeconds > R.slideSeconds || this.peakYaw > R.slideYawRad;
-    if (this.reversed) return 'roundhouse';
+    // a reversal that started away from the wall is the cutback coming back: a roundhouse. One that
+    // started toward the wall is a bottom turn going rail to rail into a top turn, which is judged
+    // by where it went like any other turn.
+    if (this.reversed && this.sign < 0) return 'roundhouse';
     if (sliding && this.peakV > R.lipV) return 'snap';
     if (sliding) return this.peakRail > R.laybackRail ? 'layback' : 'tailSlide';
     if (this.peakV > R.lipV) return 'offTheLip';

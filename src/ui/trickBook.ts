@@ -62,7 +62,7 @@ function faceShapes(): Page {
   return {
     title: 'FACE TURNS · SHAPES',
     note:
-      `A turn starts when the rail passes ${pct(R.engageRail)} and ends when it drops below ${pct(R.releaseRail)}; it must swing the board at least ${deg(R.minSwingRad)}. ` +
+      `A turn starts when the rail passes ${pct(R.engageRail)} and ends once it has stayed below ${pct(R.releaseRail)} for ${R.releaseSeconds.toFixed(2)} s (reverse the rail inside that and the turn carries on); it must swing the board at least ${deg(R.minSwingRad)}. ` +
       `Quality is 45% rail commitment, 35% direction change (full at ${deg(R.fullSwingRad)}) and 20% height on the face; above ${pct(R.perfectQuality)} is Perfect. ` +
       `Base = face basic ${TUNING.scoring.base.faceBasic[0]}–${TUNING.scoring.base.faceBasic[1]} × the worth below.`,
     rows: [

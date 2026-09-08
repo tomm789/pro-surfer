@@ -99,7 +99,7 @@ Alternating presses = paddle strokes; the sticks work like arms. Left stick down
 - **Off the lip / snap**: arrive at the top with speed, then *stab* — back foot down hard (`trim` to the tail) with `twist` in the direction of the turn. The board pivots off the tail, spray goes over the back.
 - **Cutback**: at the shoulder, rail away from the wall, held long, weight even, then reverse the rail to come back. A two-part input, and it should feel like a two-part input.
 - **Floater**: unweight (both up) as you reach the section, ride the foam, weight the nose to come down.
-- **Roundhouse**: a cutback that ends with a rebound off the foam — the game rewards linking those two automatically because the recognizer sees the shape.
+- **Roundhouse**: a cutback that ends with a rebound off the foam — the game rewards linking those two automatically because the recognizer sees the shape. Mechanically: reverse the rail *without pausing*. A turn only ends once the rail has stayed released for `recognizer.releaseSeconds`; a reversal inside that window is one turn, and a reversal that began away from the wall is the roundhouse.
 
 ### In the air
 - `twist` is rotation. `rail` is the flip/tilt axis. `compression` is the tuck: crouching in the air spins you faster (conservation of angular momentum — pull in to spin, extend to slow), which is real and reads instantly.

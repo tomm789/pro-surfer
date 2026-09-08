@@ -95,6 +95,8 @@ export const TuningSchema = z.object({
   recognizer: z.object({
     engageRail: z.number().positive(),
     releaseRail: z.number().nonnegative(),
+    /** How long the rail must stay released before a turn ends; a reversal inside this keeps it going. */
+    releaseSeconds: z.number().nonnegative(),
     minGapSeconds: z.number().nonnegative(),
     maxSeconds: z.number().positive(),
     minSwingRad: z.number().nonnegative(),

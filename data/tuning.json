@@ -92,6 +92,7 @@
   "recognizer": {
     "engageRail": 0.4,
     "releaseRail": 0.18,
+    "releaseSeconds": 0.15,
     "minGapSeconds": 0.18,
     "maxSeconds": 2.4,
     "minSwingRad": 0.35,
