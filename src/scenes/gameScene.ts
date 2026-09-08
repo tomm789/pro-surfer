@@ -109,6 +109,7 @@ export class MainGameScene implements GameScene {
     const o = this.career.data.options;
     this.input.swapFeet = o.feet === 'left-front';
     this.input.invertPress = o.press === 'up';
+    this.input.buttonLayout = o.buttons;
     this.transition.instant = o.reducedMotion;
     document.documentElement.classList.toggle('reduced-motion', o.reducedMotion);
   }
@@ -635,6 +636,18 @@ export class MainGameScene implements GameScene {
           onSelect: () => {
             this.audio.uiSelect();
             this.openControllerTest();
+          },
+        },
+        {
+          id: 'buttons',
+          label: 'Buttons',
+          value: () => (this.career.data.options.buttons === 'nintendo' ? 'Nintendo layout (A/B and X/Y swapped)' : 'Standard layout'),
+          onAdjust: () => {
+            const o = this.career.data.options;
+            o.buttons = o.buttons === 'nintendo' ? 'standard' : 'nintendo';
+            save();
+            this.applyScheme();
+            this.audio.uiMove();
           },
         },
         {

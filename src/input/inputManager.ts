@@ -21,6 +21,8 @@ export class InputManager {
   /** Stick scheme options (docs/MECHANICS.md §10): the right stick is the back foot; stick up presses. */
   swapFeet = false;
   invertPress = false;
+  /** Nintendo pads label the same physical positions A/B/X/Y the other way round; swap so the labels match. */
+  buttonLayout: 'standard' | 'nintendo' = 'standard';
   private onKeyDown = (e: KeyboardEvent) => {
     if (e.repeat) return;
     this.keys.add(e.code);
@@ -106,7 +108,8 @@ export class InputManager {
         x = x || ax * scale;
         y = y || ay * scale;
       }
-      const b = (n: number) => !!gp.buttons[n]?.pressed;
+      const swap = this.buttonLayout === 'nintendo' ? { 0: 1, 1: 0, 2: 3, 3: 2 } : ({} as Record<number, number>);
+      const b = (n: number) => !!gp.buttons[swap[n] ?? n]?.pressed;
       if (b(12)) y = 1;
       if (b(13)) y = -1;
       if (b(14)) x = -1;

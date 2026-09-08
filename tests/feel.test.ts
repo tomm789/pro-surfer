@@ -190,3 +190,104 @@ describe('§14 feel checklist', () => {
     expect(r.rider.state).toBe('face');
   });
 });
+
+/** The stick scheme (docs/MECHANICS.md): the same rig with each stick a foot. `feet(back, front)`, y up = pulled. */
+function dualRig(beachId: string, ft: number, stats = MID, seed = 5) {
+  const r = rig(beachId, ft, stats, seed);
+  r.rider.controls = 'dual';
+  const feet = (bx: number, by: number, fx: number, fy: number): Partial<RiderInput> => ({ backX: bx, backY: by, frontX: fx, frontY: fy });
+  return { ...r, feet };
+}
+
+describe('§14 feel checklist · the stick scheme', () => {
+  it('pumping in phase beats trimming, and the top speed arrives within a few seconds', () => {
+    const measure = (pump: boolean) => {
+      const r = dualRig('sandbar', 8);
+      const dir = r.wave.params.direction;
+      const speeds: number[] = [];
+      let top = 0;
+      let topAt = 0;
+      for (let i = 0; i < 60 * 12; i++) {
+        const climbing = Math.sin(r.rider.heading) > 0;
+        const rail = (r.rider.v < 0.45 ? 0.5 : -0.45) * dir;
+        // extend while climbing, crouch while dropping: the pump rhythm from MECHANICS §4
+        const press = pump ? (climbing ? 1 : -1) : 0;
+        r.step(r.feet(rail, press, rail, press));
+        if (i % 60 === 0) speeds.push(+r.rider.speed.toFixed(1));
+        if (r.rider.speed > top) {
+          top = r.rider.speed;
+          topAt = i / 60;
+        }
+      }
+      return { speeds, top: +top.toFixed(1), topAt: +topAt.toFixed(1), wipeouts: r.log.filter((l) => l.startsWith('wipeout')).length };
+    };
+    const pumped = measure(true);
+    const trimmed = measure(false);
+    report.dualPump = { pumped, trimmed, maxSpeed: TUNING.rider.maxSpeed };
+    expect(pumped.wipeouts).toBe(0);
+    // this zig-zagging virtual player is a blunt pumper; tests/stance.test.ts measures the clean case
+    expect(pumped.top).toBeGreaterThan(trimmed.top + 1);
+    expect(pumped.topAt).toBeLessThan(9);
+  });
+
+  it('crouch and flick at the lip pops a real air; a twist in the air spins it', () => {
+    const r = dualRig('sandbar', 8);
+    const dir = r.wave.params.direction;
+    for (let i = 0; i < 120; i++) r.step(r.feet(0, 1, 0, -1)); // drive for speed
+    let takeoff = 0;
+    for (let i = 0; i < 60 * 5 && r.rider.state !== 'air'; i++) {
+      const atLip = r.rider.v > 0.9;
+      takeoff = r.rider.speed;
+      r.step(r.feet(dir, atLip ? 1 : -1, dir, atLip ? 1 : -1));
+    }
+    const launched = r.rider.state === 'air';
+    let peak = 0;
+    let airTime = 0;
+    let yaw = 0;
+    const y0 = r.rider.airPos.y;
+    for (let i = 0; i < 60 * 6 && r.rider.state === 'air'; i++) {
+      r.step(r.feet(dir, -1, -dir, -1)); // twist and tuck
+      peak = Math.max(peak, r.rider.airPos.y - y0);
+      airTime = r.rider.airTime;
+      yaw = Math.abs(r.rider.airYaw);
+    }
+    const pop = r.log.find((l) => l === 'launch');
+    report.dualPop = { launched, takeoffSpeed: +takeoff.toFixed(1), peak: +peak.toFixed(2), airTime: +airTime.toFixed(2), spinDeg: Math.round((yaw * 180) / Math.PI), landing: r.log.slice(-1)[0] };
+    expect(launched).toBe(true);
+    expect(pop).toBeDefined();
+    expect(airTime).toBeGreaterThan(0.6);
+    expect(yaw).toBeGreaterThan(Math.PI * 0.9);
+  });
+
+  it('a held rail turns hard and stops short of spinning round; a twist pivots the board and recovers', () => {
+    const held = dualRig('sandbar', 8);
+    const dir = held.wave.params.direction;
+    let peakHeading = 0;
+    for (let i = 0; i < 60 * 4; i++) {
+      held.step(held.feet(dir, -0.6, dir, -0.6));
+      peakHeading = Math.max(peakHeading, Math.abs(held.rider.headingDeg));
+    }
+    // the pivot: ride, then twist the feet opposite ways for half a second and let go
+    const pivot = dualRig('sandbar', 8);
+    for (let i = 0; i < 120; i++) pivot.step(pivot.feet(0, 1, 0, -1));
+    let peakYaw = 0;
+    let slideSeconds = 0;
+    for (let i = 0; i < 30; i++) {
+      pivot.step(pivot.feet(dir, 0, -dir, 0));
+      peakYaw = Math.max(peakYaw, Math.abs(pivot.rider.boardYaw));
+      slideSeconds = Math.max(slideSeconds, pivot.rider.slideSeconds);
+    }
+    let recoveredAt = -1;
+    for (let i = 0; i < 120; i++) {
+      pivot.step(pivot.feet(0, 0, 0, 0));
+      if (recoveredAt < 0 && Math.abs(pivot.rider.boardYaw) < 0.1) recoveredAt = i / 60;
+    }
+    report.dualRail = { heldRailPeakHeadingDeg: Math.round(peakHeading), headingMaxDeg: Math.round((TUNING.rider.headingMaxRad * 180) / Math.PI) };
+    report.dualTwist = { peakYawDeg: Math.round((peakYaw * 180) / Math.PI), slideSeconds: +slideSeconds.toFixed(2), recoveredSeconds: +recoveredAt.toFixed(2), wipeouts: pivot.log.filter((l) => l.startsWith('wipeout')) };
+    expect(peakHeading).toBeGreaterThan(70);
+    expect(peakHeading).toBeLessThan(150);
+    expect(peakYaw).toBeGreaterThan(0.4);
+    expect(recoveredAt).toBeGreaterThanOrEqual(0);
+    expect(pivot.rider.state).toBe('face');
+  });
+});

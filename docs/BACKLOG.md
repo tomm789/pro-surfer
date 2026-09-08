@@ -12,7 +12,7 @@ The stance model has been verified by measurement (`tests/stance.test.ts`, `test
 
 The session, in order:
 
-0. **Options → Controller test** first. Both sticks should move the dots, down should read as *pressed* on the bars, and every button should light. If the sticks are swapped or an axis is inverted on this pad, that is an input-manager fix (`src/input/inputManager.ts`), not a tuning one.
+0. **Options → Controller test** first. Both sticks should move the dots, down should read as *pressed* on the bars, and every button should light. If the sticks are swapped or an axis is inverted on this pad, Options → Feet / Press fix it; a Nintendo pad wants Options → Buttons. Anything beyond that is an input-manager fix (`src/input/inputManager.ts`), not a tuning one. `npm run feel` prints the reference numbers (`dualPump`, `dualPop`, `dualRail`, `dualTwist`) to quote before and after a change.
 1. **Lesson 1 at the pool** with assists on: stand, pump, carve. Then free surf at the pool.
 2. Work through the feel list below, one constant at a time. Press **T** during the ride for the live tuning panel (PageUp/PageDown pick, `,` `.` nudge 5%, `0` reset, `9` copy the changed values as JSON), then write the numbers that felt right into `data/tuning.json` with a note in the commit about what changed and why. Options → Feet / Press swap the sticks or invert the press direction if the default mapping fights your thumbs.
 
