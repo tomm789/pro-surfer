@@ -235,8 +235,13 @@ export class RideScene implements GameScene {
       this.goals = new GoalTracker(this.level, goalCtx, this.goalEvents);
     }
 
-    this.uniforms = createWaterUniforms(beach);
-    this.env = new Environment(beach, this.uniforms);
+    // a level can set its own time of day over the beach's default sky
+    const L = this.level;
+    const lit = L?.sky || L?.sunElevationDeg !== undefined || L?.sunAzimuthDeg !== undefined
+      ? { ...beach, look: { ...beach.look, sky: L?.sky ?? beach.look.sky, sunElevationDeg: L?.sunElevationDeg ?? beach.look.sunElevationDeg, sunAzimuthDeg: L?.sunAzimuthDeg ?? beach.look.sunAzimuthDeg } }
+      : beach;
+    this.uniforms = createWaterUniforms(lit);
+    this.env = new Environment(lit, this.uniforms);
     this.scene.add(this.env.group);
     this.waveMesh = new WaveMesh(this.uniforms);
     this.scene.add(this.waveMesh.mesh);
@@ -742,11 +747,33 @@ export class RideScene implements GameScene {
         }
       }
     }
-    // lip mist blown back along the crest near the curl
-    for (let i = 0; i < 2; i++) {
-      const u = this.wave.curlU - 2 + Math.random() * 12;
+    // The lip: where the wave is throwing, a sheet of spray comes off the crest ahead of the curl —
+    // thrown forward with the lip and blown back up over the crest by the wind it makes — and a
+    // finer mist hangs along the crest behind it. Hollow water throws harder than a crumbling one.
+    const throwLen = this.wave.params.throwLength;
+    // inside the barrel the lip is right in front of the lens, so the sheet is thinned and shrunk there
+    const inTube = r.state === 'tube';
+    for (let i = 0; i < (inTube ? 3 : 6); i++) {
+      const k = Math.random();
+      const u = this.wave.curlU - 1 + k * throwLen * 0.9;
+      const hollow = this.wave.fields(u).hollow;
+      if (hollow < 0.2 && Math.random() > 0.35) continue;
       this.wave.position(u, 1, this.sprayTmp);
-      this.spray.emit(this.sprayTmp.x, this.sprayTmp.y + 0.3, this.sprayTmp.z, dir * 1.5, 1.2, -2.5, 1.6 + Math.random() * 2.2, 1.0 + Math.random() * 0.6, 2);
+      const sheet = hollow * hollow;
+      // the sheet: forward (−z, with the lip) and up, big, short-lived
+      this.spray.emit(
+        this.sprayTmp.x,
+        this.sprayTmp.y + 0.2,
+        this.sprayTmp.z - 0.3,
+        dir * (1 + k * 2),
+        1.5 + sheet * 3.5,
+        -3 - sheet * 4,
+        (0.9 + Math.random() * (1.4 + sheet * 1.6)) * (inTube ? 0.6 : 1),
+        0.5 + Math.random() * 0.5,
+        1.6,
+      );
+      // the blowback: a lighter mist lifted up and back over the crest
+      if (Math.random() < 0.5 + sheet * 0.5) this.spray.emit(this.sprayTmp.x, this.sprayTmp.y + 0.5, this.sprayTmp.z + 0.4, dir * 1.5, 2.2 + sheet * 2, 1.5 + sheet * 1.5, 1.4 + Math.random() * 2.2, 1.0 + Math.random() * 0.8, 2.2);
     }
     void dt;
   }

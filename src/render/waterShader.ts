@@ -1,18 +1,7 @@
 /** Shared GLSL for the wave strip and the ambient ocean. WebGL2 / GLSL ES 3.00 via three.js ShaderMaterial. */
 
-export const waterCommon = /* glsl */ `
-uniform vec3 uSunDir;
-uniform vec3 uSunColor;
-uniform vec3 uDeepColor;
-uniform vec3 uShallowColor;
-uniform vec3 uFoamColor;
-uniform vec3 uSkyHorizon;
-uniform vec3 uSkyZenith;
-uniform vec3 uGlowColor;
-uniform float uTime;
-uniform float uFogNear;
-uniform float uFogFar;
-
+/** Value noise shared by the water and the sky. */
+export const noiseCommon = /* glsl */ `
 float hash21(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
   p += dot(p, p + 45.32);
@@ -37,6 +26,26 @@ float fbm(vec2 p) {
     a *= 0.5;
   }
   return v;
+}
+`;
+
+export const waterCommon = /* glsl */ `
+uniform vec3 uSunDir;
+uniform vec3 uSunColor;
+uniform vec3 uDeepColor;
+uniform vec3 uShallowColor;
+uniform vec3 uFoamColor;
+uniform vec3 uSkyHorizon;
+uniform vec3 uSkyZenith;
+uniform vec3 uGlowColor;
+uniform float uTime;
+uniform float uFogNear;
+uniform float uFogFar;
+${noiseCommon}
+/** Sun glitter: the fine ripple facets that happen to line up with the sun flash for a frame. */
+float glitter(vec2 xz, float t, float ndh) {
+  float sp = vnoise(xz * 9.0 + vec2(t * 1.3, -t * 0.9)) * vnoise(xz * 5.0 - vec2(t * 0.7, t * 1.1));
+  return smoothstep(0.42, 0.62, sp) * pow(ndh, 40.0) * 1.4;
 }
 /** Small-scale ripple normal perturbation from scrolling noise (tangent-space-ish, world XZ). */
 vec3 rippleNormal(vec2 xz, float t, float strength) {
@@ -133,6 +142,7 @@ void main() {
   float ndh = max(dot(N, H), 0.0);
   float spec = pow(ndh, 420.0) * 0.9 + pow(ndh, 60.0) * 0.14;
   col += uSunColor * spec * (1.0 - vFoam * 0.7) * (1.0 - tubeDark);
+  col += uSunColor * glitter(vWorldPos.xz, uTime, ndh) * (1.0 - vFoam) * (1.0 - tubeDark) * (1.0 - smoothstep(0.1, 0.5, h));
 
   // foam / whitewater: turbulent multi-scale coverage with holes and bright crests, streaked along the crest
   vec2 fx = vec2(vWorldPos.x * 0.45, vWorldPos.z) ;
@@ -240,6 +250,7 @@ void main() {
   vec3 H = normalize(L + V);
   float ndh = max(dot(N, H), 0.0);
   col += uSunColor * (pow(ndh, 420.0) * 0.9 + pow(ndh, 60.0) * 0.14);
+  col += uSunColor * glitter(vWorldPos.xz, uTime, ndh);
   float fog = smoothstep(uFogNear, uFogFar, vViewZ);
   col = mix(col, uSkyHorizon, fog);
   gl_FragColor = vec4(col, 1.0);
@@ -263,13 +274,38 @@ uniform vec3 uSunColor;
 uniform vec3 uSkyHorizon;
 uniform vec3 uSkyZenith;
 uniform vec3 uHaze;
+uniform float uTime;
+uniform float uCloudCover;
+uniform vec3 uCloudTop;
+uniform vec3 uCloudBase;
 varying vec3 vDir;
+${noiseCommon}
 void main() {
   vec3 d = normalize(vDir);
+  vec3 S = normalize(uSunDir);
   float t = clamp(d.y * 1.6 + 0.15, 0.0, 1.0);
   vec3 col = mix(uSkyHorizon, uSkyZenith, pow(t, 0.6));
-  float sun = max(dot(d, normalize(uSunDir)), 0.0);
-  col += uSunColor * (pow(sun, 900.0) * 6.0 + pow(sun, 24.0) * 0.35 + pow(sun, 3.0) * 0.08);
+  float sun = max(dot(d, S), 0.0);
+  // a hard disc with a soft corona and a wide glow that warms the sky around it
+  float disc = smoothstep(0.99935, 0.99965, sun);
+  col += uSunColor * (disc * 4.0 + pow(sun, 900.0) * 2.5 + pow(sun, 24.0) * 0.35 + pow(sun, 3.0) * 0.08);
+
+  // clouds: two octaves of noise on a plane at altitude, drifting; thicker cover pulls the threshold down
+  if (d.y > 0.01) {
+    vec2 p = d.xz / (d.y + 0.12) * 0.9;
+    float n = fbm(p * 0.7 + vec2(uTime * 0.006, uTime * 0.0025)) * 0.62 + fbm(p * 2.6 - vec2(uTime * 0.011, uTime * 0.004)) * 0.38;
+    float lo = 0.72 - uCloudCover * 0.42;
+    float dens = smoothstep(lo, lo + 0.22, n);
+    dens *= smoothstep(0.01, 0.16, d.y);
+    // lit from the sun side: the top colour where the cloud faces the sun, the base colour in its own shadow
+    float lit = 0.35 + 0.65 * max(dot(normalize(vec3(d.x, d.y + 0.3, d.z)), S), 0.0);
+    // thick cloud is darker in the middle than at its edges, which is what gives an overcast sky its shape
+    float thick = smoothstep(lo, lo + 0.55, n);
+    vec3 cloud = mix(uCloudBase, uCloudTop, lit * (1.0 - thick * 0.6));
+    // a silver lining where thin cloud crosses the sun
+    cloud += uSunColor * pow(sun, 12.0) * (1.0 - dens) * 0.5;
+    col = mix(col, cloud, dens * 0.92);
+  }
   col = mix(col, uHaze, smoothstep(0.08, -0.02, d.y));
   gl_FragColor = vec4(col, 1.0);
 }

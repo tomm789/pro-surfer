@@ -8,6 +8,7 @@ import type { RiderEvents } from '@/rider/rider';
 import type { TrickEvents } from '@/tricks/executor';
 import type { RunEvents, RunController } from '@/scoring/run';
 import type { WaveModel } from '@/wave/wave';
+import { SKY_NAMES } from '@/world/beach';
 
 const base = {
   id: z.string(),
@@ -60,6 +61,10 @@ export const LevelSchema = z.object({
   intro: z.string().optional(),
   /** Tutorial lessons live outside the career world map. */
   lesson: z.boolean().default(false),
+  /** Time of day for this level, overriding the beach's own sky; the sun can move with it. */
+  sky: z.enum(SKY_NAMES).optional(),
+  sunElevationDeg: z.number().optional(),
+  sunAzimuthDeg: z.number().optional(),
 });
 
 export type Level = z.infer<typeof LevelSchema>;

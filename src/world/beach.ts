@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+/** Times of day the sky can be set to (presets live in `src/render/waterUniforms.ts`). */
+export const SKY_NAMES = ['day', 'dawn', 'evening', 'dusk', 'night', 'cloudy'] as const;
+export type SkyName = (typeof SKY_NAMES)[number];
+
 export const BeachSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -38,7 +42,7 @@ export const BeachSchema = z.object({
   hazards: z.array(z.string()),
   /** Look & feel (sky, water tint, landmarks) — presentation only. */
   look: z.object({
-    sky: z.enum(['day', 'evening', 'dusk', 'night', 'cloudy']).default('day'),
+    sky: z.enum(SKY_NAMES).default('day'),
     waterDeep: z.string(),
     waterShallow: z.string(),
     sunAzimuthDeg: z.number().default(210),

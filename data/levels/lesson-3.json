@@ -30,5 +30,8 @@
       "required": true,
       "hint": "A 540 lands fakie: that is fine, the judge accepts either way round"
     }
-  ]
+  ],
+  "sky": "dawn",
+  "sunElevationDeg": 14,
+  "sunAzimuthDeg": 120
 }

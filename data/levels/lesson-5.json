@@ -30,5 +30,8 @@
       "hint": "Fill the meter until it flashes, then reverse your rail mid-turn for a roundhouse",
       "hintClassic": "Fill the meter until it flashes, then pull your special (see the Trick Book)"
     }
-  ]
+  ],
+  "sky": "dusk",
+  "sunElevationDeg": 9,
+  "sunAzimuthDeg": 260
 }
