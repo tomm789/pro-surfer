@@ -122,6 +122,6 @@ describe('career data integrity', () => {
       expect(b).toBeDefined();
       for (const g of l.goals) if (g.type === 'objects') expect(b.hazards).toContain(g.object);
     }
-    expect(listLevels().length).toBe(12);
+    expect(listLevels().length).toBe(15);
   });
 });

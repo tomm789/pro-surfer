@@ -1,0 +1,49 @@
+{
+  "id": "wavepool-2",
+  "beach": "wavepool",
+  "name": "Sections",
+  "order": 0.2,
+  "waveFt": 8,
+  "seconds": 180,
+  "sky": "dawn",
+  "sunElevationDeg": 16,
+  "sunAzimuthDeg": 125,
+  "intro": "Dawn patrol. Every section wants something different: stall into the barrel, pump for the ramp, and use the wall between them.",
+  "unlocks": [
+    "wavepool-3"
+  ],
+  "goals": [
+    {
+      "id": "barrel",
+      "type": "zone",
+      "zone": "barrel",
+      "what": "tube",
+      "seconds": 8,
+      "required": true
+    },
+    {
+      "id": "ramp",
+      "type": "zone",
+      "zone": "ramp",
+      "what": "air",
+      "count": 3,
+      "reward": "stat:air"
+    },
+    {
+      "id": "wall",
+      "type": "zone",
+      "zone": "wall",
+      "what": "turn",
+      "trick": "snap",
+      "count": 3,
+      "reward": "stat:spin"
+    },
+    {
+      "id": "face",
+      "type": "sectionScore",
+      "section": "face",
+      "target": 12000,
+      "reward": "stat:balance"
+    }
+  ]
+}

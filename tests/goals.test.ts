@@ -125,3 +125,65 @@ describe('career save', () => {
     expect(again.data.bestScores['sandbar-1']).toBe(31000);
   });
 });
+
+describe('zone goals (the pool)', () => {
+  it('count airs by take-off section, turns by where they happen, and seconds barrelled per section', () => {
+    const r = rig('wavepool-2');
+    const find = (name: 'barrel' | 'wall' | 'ramp') => {
+      for (let u = 0; u < 300; u += 2) if (r.wave.zoneAt(u) === name) return u + 4;
+      throw new Error(`no ${name} zone`);
+    };
+    const ramp = find('ramp');
+    const wall = find('wall');
+    const barrel = find('barrel');
+    // a tracker driven by a fake rider so the section and state can be placed exactly
+    const cur = { u: wall, state: 'face' };
+    const goalEvents = new EventBus<GoalEvents>();
+    const goals = new GoalTracker(r.level, { run: r.run, riderEvents: r.riderEvents, trickEvents: r.trickEvents, runEvents: r.run.events, wave: r.wave, riderU: () => cur.u, riderState: () => cur.state }, goalEvents);
+    const prog = (id: string) => goals.progress.find((p) => p.goal.id === id)!;
+    const air = (from: number) => {
+      r.riderEvents.emit('launch', { speed: 9, heading: 0.6, power: 1, u: from, v: 0.9 });
+      r.riderEvents.emit('land', { rating: 'perfect', errorRad: 0, fakie: false, spins180: 0, u: from + 6, v: 0.3, airTime: 1, speed: 8 });
+      goals.update(DT);
+    };
+    air(ramp);
+    expect(prog('ramp').current).toBe(1);
+    air(wall); // launched from the wall: not a ramp air, even if it lands in the ramp
+    expect(prog('ramp').current).toBe(1);
+    expect(prog('ramp').label).toBe('Land 3 airs off the ramp');
+
+    // turns: only the named turn, only on the wall
+    const turn = (id: string) => {
+      r.trickEvents.emit('trickLand', { trick: TRICKS.get(id), section: 'face', aheadOfCurl: 3, rotation: 0, atLip: true });
+      goals.update(DT);
+    };
+    cur.u = wall;
+    turn('snap');
+    turn('carve');
+    expect(prog('wall').current).toBe(1);
+    cur.u = barrel;
+    turn('snap');
+    expect(prog('wall').current).toBe(1);
+    expect(prog('wall').label).toBe('Land 3 snaps on the wall');
+
+    // barrel seconds accrue only while in the tube inside the barrel section
+    cur.state = 'tube';
+    cur.u = barrel;
+    for (let i = 0; i < 60; i++) goals.update(DT);
+    cur.u = wall;
+    for (let i = 0; i < 60; i++) goals.update(DT);
+    expect(prog('barrel').current).toBeCloseTo(1, 1);
+    expect(prog('barrel').done).toBe(false);
+    cur.u = barrel;
+    for (let i = 0; i < 60 * 8; i++) goals.update(DT);
+    expect(prog('barrel').done).toBe(true);
+    expect(goals.hudLines().find((l) => l.includes('barrel'))).toMatch(/\d\.\d \/ 8/);
+  });
+
+  it('the pool levels lead the career and chain into the beaches', () => {
+    const first = listLevels()[0]!;
+    expect(first.id).toBe('wavepool-1');
+    expect(getLevel('wavepool-3').unlocks).toContain('sandbar-2');
+    for (const id of ['wavepool-1', 'wavepool-2', 'wavepool-3']) expect(getLevel(id).goals.some((g) => g.type === 'zone')).toBe(true);
+  });
+});

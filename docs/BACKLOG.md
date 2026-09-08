@@ -21,12 +21,11 @@ The stance model has been verified by measurement (`tests/stance.test.ts`, `test
 
 ## P1 — more from the pool
 
-The pool now has zones (`beach.zones`): a lap passes through a barrel section, a wall and a ramp, and `wave.zoneAt(u)` names them. What is missing is the game *using* that structure.
+The pool has zones (`beach.zones`): a lap passes through a barrel section, a wall and a ramp, `wave.zoneAt(u)` names them, the wave meter shows them and a callout announces the next one. Three career levels (`wavepool-1..3`) open the career with `zone` goals (barrelled in the barrel section, airs off the ramp, named turns on the wall). The foil carriage leads the curl at a fixed distance, so it already moves at `breakSpeed`.
 
-- [ ] Surface the zones: tell the player what is coming ("barrel section in 3…2…1"), the way the section warning already works for ocean breaks.
-- [ ] Goals that reference a zone ("get barrelled in the barrel section", "land an air off the ramp").
-- [ ] The foil carriage is decoration at a fixed lead. Tie its speed to `breakSpeed` explicitly and show it starting a lap.
+- [ ] Show the carriage starting a lap (it just exists at the moment), and give the pool a start-of-lap moment: a horn, the wave rising behind the rider.
 - [ ] Tune the zone shape with a controller: `wavelength` 140 m, `hollowAmp` 0.45, `heightAmp` 0.12 are a first guess.
+- [ ] More pool levels once the feel is settled: a contest heat at the pool, a photo level at night.
 
 ## P1 — visual identity (the biggest gap)
 

@@ -35,6 +35,20 @@ export const GoalSchema = z.discriminatedUnion('type', [
   z.object({ ...base, type: z.literal('photo'), target: z.number(), shots: z.number().int().default(3), mode: z.enum(['sum', 'best']).default('sum'), special: z.boolean().default(false) }),
   z.object({ ...base, type: z.literal('contest'), place: z.number().int(), opponentTop: z.number().default(20000) }),
   z.object({ ...base, type: z.literal('objects'), object: z.string(), action: z.enum(['spray', 'splash', 'smash', 'jump']), count: z.number().int() }),
+  /**
+   * Zoned venues (the pool): something done in a named section of the lap. `tube` counts seconds
+   * barrelled there; `air` counts airs launched from there and landed; `turn` counts recognised face
+   * turns there (optionally one named `trick`); `trick` counts any trick landed there.
+   */
+  z.object({
+    ...base,
+    type: z.literal('zone'),
+    zone: z.enum(['barrel', 'wall', 'ramp']),
+    what: z.enum(['tube', 'air', 'turn', 'trick']),
+    count: z.number().int().default(1),
+    seconds: z.number().optional(),
+    trick: z.string().optional(),
+  }),
   /** Tutorial steps (M10): a basic skill performed `count` times; `value` is the threshold for speed / spin degrees / chain length. */
   z.object({
     ...base,
@@ -109,6 +123,33 @@ export interface GoalContext {
   };
 }
 
+/** Plain names for the recogniser's turn ids, for zone goal labels. */
+const TURN_WORDS: Record<string, string> = {
+  bottomTurn: 'bottom turn',
+  snap: 'snap',
+  offTheLip: 'off-the-lip',
+  cutback: 'cutback',
+  roundhouse: 'roundhouse',
+  tailSlide: 'tail slide',
+  layback: 'layback',
+  carve: 'carve',
+};
+
+function zoneLabel(g: Extract<Goal, { type: 'zone' }>): string {
+  const where = g.zone === 'barrel' ? 'in the barrel section' : g.zone === 'ramp' ? 'off the ramp' : 'on the wall';
+  const s = g.count > 1 ? 's' : '';
+  switch (g.what) {
+    case 'tube':
+      return `Get barrelled for ${g.seconds ?? 1}s ${where}`;
+    case 'air':
+      return `Land ${g.count} air${s} ${where}`;
+    case 'turn':
+      return g.trick ? `Land ${g.count} ${TURN_WORDS[g.trick] ?? g.trick}${s} ${where}` : `Land ${g.count} turn${s} ${where}`;
+    case 'trick':
+      return `Land ${g.count} trick${s} ${where}`;
+  }
+}
+
 export function goalLabel(g: Goal): string {
   if (g.label) return g.label;
   switch (g.type) {
@@ -138,6 +179,8 @@ export function goalLabel(g: Goal): string {
       return `Place ${g.place === 1 ? '1st' : g.place === 2 ? '2nd+' : `${g.place}rd+`}`;
     case 'objects':
       return `${g.action[0]!.toUpperCase()}${g.action.slice(1)} ${g.count} ${g.object}s`;
+    case 'zone':
+      return zoneLabel(g);
     case 'lesson':
       switch (g.skill) {
         case 'stand':
@@ -172,6 +215,10 @@ export class GoalTracker {
   private tubeSeconds = 0;
   private lessonCounts = new Map<string, number>();
   private maxSpeed = 0;
+  /** Zone goals: seconds barrelled per zone, counts per goal id, and where the current air took off. */
+  private zoneTube = { barrel: 0, wall: 0, ramp: 0 };
+  private zoneCounts = new Map<string, number>();
+  private launchZone: 'barrel' | 'wall' | 'ramp' | null = null;
 
   private bump(pred: (g: Extract<Goal, { type: 'lesson' }>) => boolean): void {
     for (const g of this.level.goals) if (g.type === 'lesson' && pred(g)) this.lessonCounts.set(g.id, (this.lessonCounts.get(g.id) ?? 0) + 1);
@@ -183,15 +230,25 @@ export class GoalTracker {
     private events: EventBus<GoalEvents>,
   ) {
     for (const g of level.goals) this.progress.push({ goal: g, label: goalLabel(g), current: 0, target: this.targetOf(g), done: false });
+    ctx.riderEvents.on('launch', (e) => (this.launchZone = ctx.wave.zoneAt(e.u)));
     ctx.riderEvents.on('land', (e) => {
       if (e.rating === 'wipeout') return;
       const deg = e.spins180 * 180;
       for (const d of [360, 540, 720]) if (deg >= d) this.rotations.set(d, (this.rotations.get(d) ?? 0) + 1);
       this.bump((g) => g.skill === 'air' || (g.skill === 'spin' && deg >= g.value));
+      // an air belongs to the section it took off from, not where it came down
+      for (const g of level.goals) if (g.type === 'zone' && g.what === 'air' && this.launchZone === g.zone) this.zoneCounts.set(g.id, (this.zoneCounts.get(g.id) ?? 0) + 1);
+      this.launchZone = null;
     });
     ctx.trickEvents.on('trickLand', (e) => {
       for (const g of level.goals) if (g.type === 'learnTrick' && g.trick === e.trick.id) this.learnCount++;
       this.bump((g) => (g.skill === 'trick' && (!g.section || e.section === g.section)) || (g.skill === 'special' && e.trick.special));
+      const zone = ctx.wave.zoneAt(ctx.riderU());
+      for (const g of level.goals) {
+        if (g.type !== 'zone' || g.zone !== zone) continue;
+        const hit = (g.what === 'turn' && e.section === 'face' && (!g.trick || g.trick === e.trick.id)) || (g.what === 'trick' && (!g.trick || g.trick === e.trick.id));
+        if (hit) this.zoneCounts.set(g.id, (this.zoneCounts.get(g.id) ?? 0) + 1);
+      }
     });
     ctx.riderEvents.on('stand', () => this.bump((g) => g.skill === 'stand'));
     ctx.riderEvents.on('floaterEnd', () => this.bump((g) => g.skill === 'floater'));
@@ -232,6 +289,8 @@ export class GoalTracker {
         return g.place;
       case 'objects':
         return g.count;
+      case 'zone':
+        return g.what === 'tube' ? (g.seconds ?? 1) : g.count;
       case 'lesson':
         return g.skill === 'speed' ? g.value : g.count;
     }
@@ -263,7 +322,10 @@ export class GoalTracker {
         this.survived++;
       } else if (!s) this.trackedSections.set(id, 'passed'); // merged into the curl (we outran it or it closed)
     }
-    if (this.ctx.riderState() === 'tube') this.tubeSeconds += dt;
+    if (this.ctx.riderState() === 'tube') {
+      this.tubeSeconds += dt;
+      this.zoneTube[this.ctx.wave.zoneAt(u)] += dt;
+    }
     if (this.ctx.riderState() === 'face') this.maxSpeed = Math.max(this.maxSpeed, this.ctx.extra?.riderSpeed?.() ?? 0);
 
     for (const p of this.progress) {
@@ -332,6 +394,10 @@ export class GoalTracker {
           current = this.ctx.extra?.objectHits?.(g.object, g.action) ?? 0;
           done = current >= g.count;
           break;
+        case 'zone':
+          current = g.what === 'tube' ? this.zoneTube[g.zone] : (this.zoneCounts.get(g.id) ?? 0);
+          done = current >= (g.what === 'tube' ? (g.seconds ?? 1) : g.count);
+          break;
         case 'lesson':
           current = g.skill === 'speed' ? this.maxSpeed : (this.lessonCounts.get(g.id) ?? 0);
           done = current >= (g.skill === 'speed' ? g.value : g.count);
@@ -363,7 +429,11 @@ export class GoalTracker {
       if (p.goal.type === 'gromLocal') prog = `${p.current.toLocaleString('en-US')}  ${p.detail ?? ''}`.trim();
       else if (p.goal.type === 'noWipeout') prog = p.detail ?? '';
       else if (p.target > 999) prog = `${Math.round(p.current).toLocaleString('en-US')} / ${p.target.toLocaleString('en-US')}`;
-      else prog = `${p.goal.type === 'specialTime' || p.goal.type === 'tubeTime' || (p.goal.type === 'lesson' && p.goal.skill === 'speed') ? p.current.toFixed(1) : Math.round(p.current)} / ${p.target}`;
+      else {
+        const g = p.goal;
+        const fractional = g.type === 'specialTime' || g.type === 'tubeTime' || (g.type === 'lesson' && g.skill === 'speed') || (g.type === 'zone' && g.what === 'tube');
+        prog = `${fractional ? p.current.toFixed(1) : Math.round(p.current)} / ${p.target}`;
+      }
       return `${mark} ${p.label}   ${prog}`;
     });
   }

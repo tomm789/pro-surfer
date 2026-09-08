@@ -1,0 +1,53 @@
+{
+  "id": "wavepool-3",
+  "beach": "wavepool",
+  "name": "Night Session",
+  "order": 0.3,
+  "waveFt": 8,
+  "seconds": 180,
+  "sky": "night",
+  "sunElevationDeg": 55,
+  "sunAzimuthDeg": 230,
+  "intro": "Floodlights on. Link the sections into one chain: barrel, wall, ramp, cash in.",
+  "unlocks": [
+    "sandbar-2"
+  ],
+  "goals": [
+    {
+      "id": "score",
+      "type": "score",
+      "target": 30000,
+      "required": true
+    },
+    {
+      "id": "barrel",
+      "type": "zone",
+      "zone": "barrel",
+      "what": "tube",
+      "seconds": 12,
+      "reward": "stat:balance"
+    },
+    {
+      "id": "rampspin",
+      "type": "rotation",
+      "degrees": 360,
+      "count": 2,
+      "reward": "stat:spin"
+    },
+    {
+      "id": "lips",
+      "type": "zone",
+      "zone": "wall",
+      "what": "turn",
+      "trick": "offTheLip",
+      "count": 3,
+      "reward": "stat:speed"
+    },
+    {
+      "id": "special",
+      "type": "specialTime",
+      "seconds": 20,
+      "reward": "stat:air"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "wavepool-1",
+  "beach": "wavepool",
+  "name": "First Lap",
+  "order": 0.1,
+  "waveFt": 7,
+  "seconds": 180,
+  "intro": "One long wall with a barrel section and a ramp every lap. Watch the meter: teal is the barrel, orange is the ramp.",
+  "unlocks": [
+    "wavepool-2"
+  ],
+  "goals": [
+    {
+      "id": "score",
+      "type": "score",
+      "target": 8000,
+      "required": true
+    },
+    {
+      "id": "barrel",
+      "type": "zone",
+      "zone": "barrel",
+      "what": "tube",
+      "seconds": 3,
+      "reward": "stat:balance"
+    },
+    {
+      "id": "ramp",
+      "type": "zone",
+      "zone": "ramp",
+      "what": "air",
+      "count": 2,
+      "reward": "stat:air"
+    },
+    {
+      "id": "lap",
+      "type": "noWipeout",
+      "seconds": 60,
+      "score": 0,
+      "reward": "stat:speed"
+    }
+  ]
+}
