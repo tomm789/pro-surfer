@@ -14,7 +14,7 @@ The session, in order:
 
 0. **Options → Controller test** first. Both sticks should move the dots, down should read as *pressed* on the bars, and every button should light. If the sticks are swapped or an axis is inverted on this pad, that is an input-manager fix (`src/input/inputManager.ts`), not a tuning one.
 1. **Lesson 1 at the pool** with assists on: stand, pump, carve. Then free surf at the pool.
-2. Work through the feel list below, one constant at a time, and write the numbers that felt right into `data/tuning.json` with a note in the commit about what changed and why.
+2. Work through the feel list below, one constant at a time. Press **T** during the ride for the live tuning panel (PageUp/PageDown pick, `,` `.` nudge 5%, `0` reset, `9` copy the changed values as JSON), then write the numbers that felt right into `data/tuning.json` with a note in the commit about what changed and why. Options → Feet / Press swap the sticks or invert the press direction if the default mapping fights your thumbs.
 
 - [ ] **Rail feel**: `stance.footFollowRate`, `railFollowRate`, `railCarveBonus`, `compressionTurnBonus`. A committed lean should feel heavy and deliberate, not twitchy; a small lean should hold a line. `rider.headingMaxRad` is the wall a held rail runs into.
 - [ ] **Pump rhythm**: `pumpFullRate`, `pumpAccelScale`, `pumpPhaseDeadzone`. The window for being "in phase" must be generous enough to learn but tight enough to reward timing. Consider whether a beginner needs an audible or visual cue (open question in MECHANICS §10).

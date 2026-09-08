@@ -194,7 +194,7 @@ try {
   await press('Enter');
   await stepN(10);
   freshMenu();
-  await goto(3); // controller test
+  await goto(5); // controller test (options: controls, feet, press, assists, camera, controller test, …)
   await press('Enter');
   await stepN(10);
   const opened = (await title()) === 'CONTROLLER TEST';

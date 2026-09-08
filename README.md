@@ -69,6 +69,8 @@ npm run smoke           # walks every menu flow headlessly (plus a scored run, p
 npm run perf            # sim / render / draw-call cost against a budget
 ```
 
+**Tuning the feel live.** During a solo ride press **T** for the live tuning panel: PageUp/PageDown pick a constant (stance, rider, recogniser, camera), **,** / **.** nudge it by 5%, **0** resets it, **9** copies every changed value as JSON (and prints it to the console) to paste into `data/tuning.json`. The simulation reads the values every step, so a nudge shows on the next frame. Options also has **Feet** (which stick is the back foot) and **Press** (whether stick down or stick up presses a foot) for anyone whose thumbs disagree with the default.
+
 The ocean breaks come in sets: the face pulses between a lull and a set on a slow cycle, the wave meter says what is coming ("8 FT · SET IN 6"), and the sets get bigger the heavier the beach. The Long Pool and the lessons are steady.
 
 ```sh

@@ -20,6 +20,7 @@ import { getBeach } from '@/world/beaches';
 import { listRiders, listBoards, getRider, getBoard, effectiveStats, statBar } from '@/world/roster';
 import { TrickBookScreen } from '@/ui/trickBook';
 import { ControllerTestScreen } from '@/ui/controllerTest';
+import { TuningPanel } from '@/ui/tuningPanel';
 import { TUNING as T } from '@/core/tuning';
 
 type Flow = 'boot' | 'menu' | 'ride' | 'paused' | 'results' | 'split' | 'interstitial' | 'replay';
@@ -53,6 +54,8 @@ export class MainGameScene implements GameScene {
   private careerMenu: MenuScreen | null = null;
   private trickBook: TrickBookScreen | null = null;
   private controllerTest: ControllerTestScreen | null = null;
+  private tuning: TuningPanel | null = null;
+  private prevKeys = new Set<string>();
   private riderIndex = 0;
   private boardIndex = 0;
   private lastInput: Readonly<RiderInput> = NEUTRAL_INPUT;
@@ -100,6 +103,9 @@ export class MainGameScene implements GameScene {
 
   private applyScheme(): void {
     this.input.setKeymap(this.scheme === 'dual' ? KEYMAP_DUAL : KEYMAP_SOLO);
+    const o = this.career.data.options;
+    this.input.swapFeet = o.feet === 'left-front';
+    this.input.invertPress = o.press === 'up';
   }
 
   init(ctx: SceneContext): void {
@@ -519,6 +525,30 @@ export class MainGameScene implements GameScene {
             this.applyScheme();
             this.audio.uiMove();
             this.startRide(true);
+          },
+        },
+        {
+          id: 'feet',
+          label: 'Feet',
+          value: () => (this.career.data.options.feet === 'left-front' ? 'Left stick = front foot' : 'Left stick = back foot'),
+          onAdjust: () => {
+            const o = this.career.data.options;
+            o.feet = o.feet === 'left-front' ? 'left-back' : 'left-front';
+            save();
+            this.applyScheme();
+            this.audio.uiMove();
+          },
+        },
+        {
+          id: 'press',
+          label: 'Press',
+          value: () => (this.career.data.options.press === 'up' ? 'Stick up presses the foot' : 'Stick down presses the foot'),
+          onAdjust: () => {
+            const o = this.career.data.options;
+            o.press = o.press === 'up' ? 'down' : 'up';
+            save();
+            this.applyScheme();
+            this.audio.uiMove();
           },
         },
         {
@@ -948,6 +978,7 @@ export class MainGameScene implements GameScene {
           this.ride?.setInput(inp);
           this.ride?.step(dt);
         }
+        this.tuning?.update(dt);
         break;
       }
       case 'paused': {
@@ -987,6 +1018,30 @@ export class MainGameScene implements GameScene {
     const mute = keys.has('KeyM');
     if (mute && !this.prevMute) this.audio.setMuted(!this.audio.muted);
     this.prevMute = mute;
+    // the live tuning panel (T) during a solo ride: edge-detected so a held key nudges once
+    const edge = (code: string) => {
+      const down = keys.has(code);
+      const was = this.prevKeys.has(code);
+      if (down) this.prevKeys.add(code);
+      else this.prevKeys.delete(code);
+      return down && !was;
+    };
+    const tuneKeys = ['KeyT', 'PageUp', 'PageDown', 'Comma', 'Period', 'Digit0', 'Digit9'].map((k) => [k, edge(k)] as const);
+    const hit = (k: string) => tuneKeys.find((x) => x[0] === k)?.[1] ?? false;
+    if (hit('KeyT') && (this.flow === 'ride' || this.tuning)) {
+      if (this.tuning) {
+        this.tuning.dispose();
+        this.tuning = null;
+      } else this.tuning = new TuningPanel(this.ctx.uiRoot);
+    }
+    if (this.tuning) {
+      if (hit('PageUp')) this.tuning.move(-1);
+      if (hit('PageDown')) this.tuning.move(1);
+      if (hit('Comma')) this.tuning.nudge(-1);
+      if (hit('Period')) this.tuning.nudge(1);
+      if (hit('Digit0')) this.tuning.reset();
+      if (hit('Digit9')) this.tuning.copy();
+    }
     const full = keys.has('KeyF');
     if (full && !this.prevFull) void this.toggleFullscreen();
     this.prevFull = full;
@@ -1012,6 +1067,7 @@ export class MainGameScene implements GameScene {
     this.results?.dispose();
     this.trickBook?.dispose();
     this.controllerTest?.dispose();
+    this.tuning?.dispose();
     this.boot?.dispose();
     this.split?.dispose();
     this.input.detach(window);

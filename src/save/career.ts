@@ -9,8 +9,11 @@ export interface CareerData {
   board: string;
   stats: { spin: number; speed: number; air: number; balance: number };
   records: { bestScore: number; bestChain: number; longestTube: number; mostSpecialTime: number; perBeach: Record<string, number>; byRider: Record<string, number> };
-  /** Player options (docs/MECHANICS.md §9). */
-  options: { controls: 'dual' | 'classic'; camera: 'chase' | 'first'; assists: boolean };
+  /**
+   * Player options (docs/MECHANICS.md §9). `feet` says which stick is the back foot; `press` which
+   * way on a stick presses that foot into the board (down is the default and the documented rule).
+   */
+  options: { controls: 'dual' | 'classic'; camera: 'chase' | 'first'; assists: boolean; feet: 'left-back' | 'left-front'; press: 'down' | 'up' };
 }
 
 const KEY = 'lineup.career.v1';
@@ -37,7 +40,7 @@ export function defaultCareer(): CareerData {
     board: 'thruster',
     stats: { spin: 0, speed: 0, air: 0, balance: 0 },
     records: { bestScore: 0, bestChain: 0, longestTube: 0, mostSpecialTime: 0, perBeach: {}, byRider: {} },
-    options: { controls: 'dual', camera: 'chase', assists: true },
+    options: { controls: 'dual', camera: 'chase', assists: true, feet: 'left-back', press: 'down' },
   };
 }
 

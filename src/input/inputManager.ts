@@ -17,6 +17,9 @@ export class InputManager {
   gamepadName = '';
   /** When true, ignore gamepads entirely (keyboard-only player). */
   keyboardOnly = false;
+  /** Stick scheme options (docs/MECHANICS.md §10): the right stick is the back foot; stick up presses. */
+  swapFeet = false;
+  invertPress = false;
   private onKeyDown = (e: KeyboardEvent) => {
     if (e.repeat) return;
     this.keys.add(e.code);
@@ -142,6 +145,14 @@ export class InputManager {
       by = by || -dead(gp.axes[1] ?? 0);
       fx = fx || dead(gp.axes[2] ?? 0);
       fy = fy || -dead(gp.axes[3] ?? 0);
+    }
+    // player options: which stick is the back foot, and which way on a stick presses the foot down
+    if (this.invertPress) {
+      by = -by;
+      fy = -fy;
+    }
+    if (this.swapFeet) {
+      [bx, by, fx, fy] = [fx, fy, bx, by];
     }
     i.backX = bx;
     i.backY = by;
