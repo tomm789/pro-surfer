@@ -85,11 +85,13 @@ const CSS = `
 .tune .msg{margin-top:4px;color:#3ef0a0}
 `;
 let cssDone = false;
+/** The values as loaded from data/tuning.json, captured once: closing and reopening the panel must not forget them. */
+const ORIGINAL = new Map<string, number>();
 
 export class TuningPanel {
   readonly root: HTMLDivElement;
   private sel = 0;
-  private original = new Map<string, number>();
+  private original = ORIGINAL;
   private rowsEl: HTMLDivElement[] = [];
   private noteEl: HTMLDivElement;
   private msgEl: HTMLDivElement;

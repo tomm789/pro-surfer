@@ -5,7 +5,7 @@
  *
  * Deterministic and DOM-free: it reads numbers off the rider and emits events.
  */
-import { clamp, lerp } from '@/core/math';
+import { clamp, lerp, wrapAngle } from '@/core/math';
 import type { EventBus } from '@/core/events';
 import type { Tuning } from '@/core/tuning';
 import type { Trick } from './catalogue';
@@ -79,6 +79,8 @@ export class TrickRecognizer {
   private releasedFor = 0;
   /** The most recent recognised turn, for the HUD and for tests. */
   last: TurnSummary | null = null;
+  /** Gate for the special turns; the scene wires this to the special meter. */
+  canDoSpecial: () => boolean = () => true;
 
   constructor(
     private tuning: Tuning,
@@ -125,7 +127,8 @@ export class TrickRecognizer {
     this.peakYaw = Math.max(this.peakYaw, Math.abs(r.boardYaw));
     this.peakV = Math.max(this.peakV, r.v);
     this.minV = Math.min(this.minV, r.v);
-    this.swing = Math.max(this.swing, Math.abs(r.heading - this.startHeading));
+    // the heading wraps at ±π: measure the swing as the shortest angular difference
+    this.swing = Math.max(this.swing, Math.abs(wrapAngle(r.heading - this.startHeading)));
     // a rail reversal inside one turn is the signature of a roundhouse
     if (Math.sign(rail) === -this.sign && Math.abs(rail) >= R.engageRail) this.reversed = true;
 
@@ -164,7 +167,9 @@ export class TrickRecognizer {
     this.last = summary;
     const B = this.tuning.scoring.base.faceBasic;
     const base = lerp(B[0], B[1], quality) * (R.worth[kind] ?? 1);
-    const special = kind === 'roundhouse' || kind === 'layback';
+    // the big two are specials, and specials need the flashing meter (design doc §6): without it the
+    // turn still lands and scores as itself, it just does not count as a special
+    const special = (kind === 'roundhouse' || kind === 'layback') && this.canDoSpecial();
     this.events.emit('trickLand', {
       trick: makeTrick(kind, Math.round(base), special),
       section: 'face',

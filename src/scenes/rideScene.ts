@@ -88,7 +88,6 @@ export class RideScene implements GameScene {
   private lastFrameInput: Readonly<RiderInput> = NEUTRAL_INPUT;
   private prevCameraToggle = false;
   private prevCashIn = false;
-  private cashInEdge = false;
   private headless = false;
   private hudState!: HudState;
   /** Optional audio manager (set by the game shell before init). */
@@ -122,7 +121,9 @@ export class RideScene implements GameScene {
   private seed = 1;
   private replayChrome: HTMLElement[] = [];
   /** Receives scrapbook photos (photo-goal shutters, replay snapshots). */
-  onPhoto: ((p: { data: string; value: number; caption: string }) => void) | null = null;
+  onPhoto: ((p: { data: string; value: number; caption: string; beach: string; rider: string }) => void) | null = null;
+  private photoBeach = '';
+  private photoRider = '';
   private photoRequest: { value: number; caption: string } | null = null;
   private thumb: HTMLCanvasElement | null = null;
   private prevSnap = false;
@@ -180,6 +181,8 @@ export class RideScene implements GameScene {
     this.wave = new WaveModel(params, new Rng(ctx.seed), 0);
     const riderDef = getRider(ctx.params.get('rider') ?? listRiders()[0]!.id);
     const boardDef = getBoard(ctx.params.get('board') ?? listBoards()[0]!.id);
+    this.photoBeach = beach.name;
+    this.photoRider = riderDef.name;
     const boostsRaw = ctx.params.get('boosts');
     const boosts = boostsRaw ? (JSON.parse(boostsRaw) as { spin: number; speed: number; air: number; balance: number }) : { spin: 0, speed: 0, air: 0, balance: 0 };
     const stats = effectiveStats(riderDef, boardDef, boosts, TUNING.stats);
@@ -272,7 +275,11 @@ export class RideScene implements GameScene {
     this.rider.controls = ctx.params.get('controls') === 'classic' ? 'classic' : 'dual';
     this.rider.assists = ctx.params.get('assists') !== '0';
     // face turns come from the physics rather than button combos, so this only exists for the dual scheme
-    if (this.rider.controls === 'dual') this.recognizer = new TrickRecognizer(TUNING, this.trickEvents);
+    if (this.rider.controls === 'dual') {
+      this.recognizer = new TrickRecognizer(TUNING, this.trickEvents);
+      // the special turns need the flashing meter, the same gate the button specials go through
+      this.recognizer.canDoSpecial = () => this.tricks.canDoSpecial();
+    }
     if (this.rider.controls === 'dual') this.inputManager.setKeymap(KEYMAP_DUAL);
     this.cam = new ChaseCamera(TUNING);
     const camParam = ctx.params.get('cam');
@@ -584,11 +591,10 @@ export class RideScene implements GameScene {
         const frame = Math.floor(this.time * 60);
         input = { ...input, stickX: Math.abs(b) > 0.08 && frame % 6 < 3 ? Math.sign(b) : 0 };
       }
-      bank = (input.cashIn && !this.prevCashIn) || this.cashInEdge;
+      bank = input.cashIn && !this.prevCashIn;
       this.prevCashIn = input.cashIn;
       this.recorder.record(input, bank);
     }
-    this.cashInEdge = false;
     if (this.director) {
       this.director.update(dt, this.rider.state, this.rider.airTime);
       if (this.director.cut) this.cam.cut(this.director.mode);
@@ -825,8 +831,7 @@ export class RideScene implements GameScene {
     const s = this.hudState;
     const r = this.rider;
     s.score = this.run.score;
-    s.clock = this.run.ended || this.run.clock === undefined ? this.run.clock : this.run.clock;
-    if (this.run['untimed' as keyof RunController]) s.clock = null;
+    s.clock = this.run.untimed ? null : this.run.clock;
     s.meter = this.run.meter.value;
     s.meterState = this.run.meter.state;
     s.specialTime = this.run.meter.isYellow ? this.run.meter.yellowSeconds : 0;
@@ -960,7 +965,7 @@ export class RideScene implements GameScene {
       if (sw / sh > 16 / 9) cw = sh * (16 / 9);
       else ch = sw / (16 / 9);
       c.drawImage(src, (sw - cw) / 2, (sh - ch) / 2, cw, ch, 0, 0, this.thumb.width, this.thumb.height);
-      this.onPhoto({ data: this.thumb.toDataURL('image/jpeg', 0.72), value: req.value, caption: req.caption });
+      this.onPhoto({ data: this.thumb.toDataURL('image/jpeg', 0.72), value: req.value, caption: req.caption, beach: this.photoBeach, rider: this.photoRider });
     } catch {
       /* canvas read blocked */
     }

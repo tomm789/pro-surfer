@@ -51,7 +51,8 @@ export class RunController {
   private tubeActive = false;
   private floaterActive = false;
   private floaterSeconds = 0;
-  private untimed: boolean;
+  /** Free surf: no clock at all. */
+  readonly untimed: boolean;
   private tubeTricks = 0;
 
   constructor(

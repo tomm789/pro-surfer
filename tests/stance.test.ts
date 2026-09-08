@@ -248,3 +248,30 @@ describe('dual-stick rider', () => {
     expect(b.rider.snapshot()).toEqual(a.rider.snapshot());
   });
 });
+
+describe('after a wipeout', () => {
+  it('a slide wipeout does not cause the next one: the board comes back straight on the respawn', () => {
+    const r = rig();
+    const dir = r.wave.params.direction;
+    r.run(1.5, () => feet([0, 1], [0, -1]));
+    // twist the feet opposite ways until the tail lets go for good
+    let t = 0;
+    while (r.rider.state !== 'wipeout' && t < 6) {
+      r.step(feet([dir, 0], [-dir, 0]));
+      t += 1 / 60;
+    }
+    expect(r.log).toContain('wipeout:slide');
+    const before = r.log.length;
+    // sticks released through the tumble, the respawn and the first seconds on the face
+    let stood = false;
+    for (let i = 0; i < 60 * 12; i++) {
+      const prone = r.rider.state === 'prone';
+      r.step({ ...feet([0, 0], [0, 0]), stand: prone && i % 30 === 0 });
+      if (r.rider.state === 'face') stood = true;
+      if (stood && r.rider.state !== 'face') break;
+    }
+    expect(stood).toBe(true);
+    expect(r.log.slice(before).filter((l) => l.startsWith('wipeout'))).toEqual([]);
+    expect(Math.abs(r.rider.boardYaw)).toBeLessThan(0.05);
+  });
+});

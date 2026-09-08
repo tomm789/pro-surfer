@@ -109,7 +109,8 @@ function playLesson(id: string, seed: number, policy: Policy = 'cruise') {
       if (policy === 'chain') {
         // cash in once the chain has three tricks in it, the way the lesson asks
         cashTimer += DT;
-        if (run.chain.entries.length >= 3 && cashTimer > 0.5) {
+        // cashing in resets the meter, so once the chain goal is done let it fill for the special
+        if (run.chain.entries.length >= 3 && cashTimer > 0.5 && !done.includes('chain3')) {
           cash = true;
           cashTimer = 0;
         }

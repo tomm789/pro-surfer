@@ -4,6 +4,7 @@
  * Emits events consumed by scoring (M5), the HUD and audio.
  */
 import type { EventBus } from '@/core/events';
+import { wrapAngle } from '@/core/math';
 import type { Tuning } from '@/core/tuning';
 import type { RiderSim, RiderEvents } from '@/rider/rider';
 import type { RiderInput } from '@/rider/input';
@@ -54,9 +55,10 @@ export class TrickSystem {
   private active: Active | null = null;
   /** Air tricks performed this flight; they land (or are lost) with the rider. */
   private pendingAir: Active[] = [];
-  private holdAccum = { carve: 0, grab: 0, slide: 0 } as Record<TrickButton, number>;
-  private holdHeading = 0;
-  private holdFired = { carve: false, grab: false, slide: false } as Record<TrickButton, boolean>;
+  /** Hold tricks accumulate per trick id: two tricks on one button (grab turn, power slide) must not share a slot. */
+  private holdAccum: Record<string, number> = {};
+  private holdHeading: Record<string, number> = {};
+  private holdFired: Record<string, boolean> = {};
   /** Stick scheme: one grab per press of each hand; the shape has to settle before it is read. */
   private grabHold: Record<GrabButton, { fired: boolean; stable: number }> = { grab: { fired: false, stable: 0 }, carve: { fired: false, stable: 0 }, slide: { fired: false, stable: 0 } };
   private prevState = '';
@@ -129,9 +131,10 @@ export class TrickSystem {
     if (section === 'air') {
       const exit = this.sequencer.exitMatch('air');
       if (exit && this.allowed(exit)) {
-        this.events.emit('exitMove', { trick: exit });
+        // the scene ends the flight on this event, and that must not read as a wipeout of the grabs
         this.pendingAir = [];
         this.sequencer.reset();
+        this.events.emit('exitMove', { trick: exit });
         return;
       }
     }
@@ -252,6 +255,8 @@ export class TrickSystem {
     // a completed roll is a flip in its own right, grabbed or not; with a spin on top it is a rodeo
     if (flips > 0) {
       const trick = flipTrick(flips, spins180, this.tuning.scoring.base.flip);
+      // a special-sized flip still lands without the meter, it just is not a special (design doc §6)
+      if (trick.special && !this.canDoSpecial()) trick.special = false;
       this.events.emit('trickLand', { trick, section: 'air', aheadOfCurl: this.rider.aheadOfCurl, rotation, landing: rating, atLip: false });
     } else if (!this.pendingAir.length) {
       // A plain air with no grab and no rotation is still a manoeuvre — getting off the lip and landing
@@ -271,9 +276,9 @@ export class TrickSystem {
   }
 
   private resetHolds(): void {
-    this.holdAccum = { carve: 0, grab: 0, slide: 0 };
-    this.holdFired = { carve: false, grab: false, slide: false };
-    this.holdHeading = this.rider.heading;
+    this.holdAccum = {};
+    this.holdFired = {};
+    this.holdHeading = {};
     for (const b of GRAB_BUTTONS) this.grabHold[b] = { fired: false, stable: 0 };
   }
 
@@ -285,28 +290,28 @@ export class TrickSystem {
       const inp = trick.input;
       if (inp.kind !== 'hold') continue;
       const held = input[inp.button] && (!inp.with || input[inp.with]) && turning;
-      const key = inp.with ? inp.with : inp.button; // power slide shares the slide key but needs grab too
+      const key = trick.id;
+      const heading = this.rider.heading;
       if (!held) {
-        if (!inp.with) {
-          this.holdAccum[key] = 0;
-          this.holdFired[key] = false;
-          this.holdHeading = this.rider.heading;
-        }
+        this.holdAccum[key] = 0;
+        this.holdFired[key] = false;
+        this.holdHeading[key] = heading;
         continue;
       }
       if (this.holdFired[key]) continue;
       if (inp.holdRadians !== undefined) {
-        this.holdAccum[key] += Math.abs(this.rider.heading - this.holdHeading);
-        this.holdHeading = this.rider.heading;
-        if (this.holdAccum[key] >= inp.holdRadians) this.fireHold(trick, key);
+        // the heading wraps at ±π, so the turn is measured as the shortest angular difference
+        this.holdAccum[key] = (this.holdAccum[key] ?? 0) + Math.abs(wrapAngle(heading - (this.holdHeading[key] ?? heading)));
+        this.holdHeading[key] = heading;
+        if (this.holdAccum[key]! >= inp.holdRadians) this.fireHold(trick, key);
       } else if (inp.holdSeconds !== undefined) {
-        this.holdAccum[key] += dt;
-        if (this.holdAccum[key] >= inp.holdSeconds) this.fireHold(trick, key);
+        this.holdAccum[key] = (this.holdAccum[key] ?? 0) + dt;
+        if (this.holdAccum[key]! >= inp.holdSeconds) this.fireHold(trick, key);
       }
     }
   }
 
-  private fireHold(trick: Trick, key: TrickButton): void {
+  private fireHold(trick: Trick, key: string): void {
     if (!this.allowed(trick)) return;
     this.holdFired[key] = true;
     this.events.emit('trickStart', { trick, section: 'face' });

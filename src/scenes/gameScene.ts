@@ -92,10 +92,11 @@ export class MainGameScene implements GameScene {
     this.transition.run(mid, style);
   }
 
-  private savePhoto(p: { data: string; value: number; caption: string }): void {
-    const beach = this.beaches[this.beachIndex]!;
-    const rider = this.availableRiders()[this.riderIndex]!;
-    this.scrapbook.add({ ...p, beach: beach.name, rider: rider.name });
+  private savePhoto(p: { data: string; value: number; caption: string; beach?: string; rider?: string }): void {
+    // the ride says where and who it was (a replay from the record book may not be the menu's choice)
+    const beach = p.beach ?? this.beaches[this.beachIndex]!.name;
+    const rider = p.rider ?? this.availableRiders()[this.riderIndex]!.name;
+    this.scrapbook.add({ data: p.data, value: p.value, caption: p.caption, beach, rider });
   }
 
   private openScrapbook(): void {
@@ -195,7 +196,7 @@ export class MainGameScene implements GameScene {
     this.split.onEnd = (r) => {
       this.split?.dispose();
       this.split = null;
-      this.input.setKeymap(KEYMAP_SOLO);
+      this.applyScheme(); // back to the solo scheme the player chose, not a fixed keymap
       this.input.gamepadIndex = null;
       this.results = new ResultsScreen(
         this.ctx.uiRoot,
@@ -272,21 +273,24 @@ export class MainGameScene implements GameScene {
     this.menu = null;
     const r = this.career.data.records;
     const stat = (id: string, label: string, value: string): MenuItem => ({ id, label, value: () => value, disabled: true });
+    // an imported save may name beaches or riders this build does not have; show the id rather than crash
+    const beachName = (id: string) => this.beaches.find((b) => b.id === id)?.name ?? id;
+    const riderName = (id: string) => listRiders().find((x) => x.id === id)?.name ?? id;
     const items: MenuItem[] = [
       stat('best', 'Best session', r.bestScore.toLocaleString('en-US')),
       stat('chain', 'Best chain', r.bestChain.toLocaleString('en-US')),
       stat('tube', 'Longest tube', `${r.longestTube.toFixed(1)} s`),
       stat('special', 'Most special time', `${r.mostSpecialTime.toFixed(1)} s`),
-      ...Object.entries(r.perBeach).map(([b, v]) => stat(`beach-${b}`, getBeach(b).name, v.toLocaleString('en-US'))),
-      ...Object.entries(r.byRider).map(([rid, v]) => stat(`rider-${rid}`, getRider(rid).name, v.toLocaleString('en-US'))),
+      ...Object.entries(r.perBeach).map(([b, v]) => stat(`beach-${b}`, beachName(b), v.toLocaleString('en-US'))),
+      ...Object.entries(r.byRider).map(([rid, v]) => stat(`rider-${rid}`, riderName(rid), v.toLocaleString('en-US'))),
     ];
     // the best chain at each beach is kept as a replay; select one to watch it
     const replays = this.career.savedReplays();
     for (const rep of replays) {
       items.push({
         id: `replay-${rep.beach}`,
-        label: `▶ Replay · ${getBeach(rep.beach).name}`,
-        value: () => `${rep.points.toLocaleString('en-US')} · ${getRider(rep.rider).name}`,
+        label: `▶ Replay · ${beachName(rep.beach)}`,
+        value: () => `${rep.points.toLocaleString('en-US')} · ${riderName(rep.rider)}`,
         onSelect: () => {
           try {
             this.playReplay(decodeRecording(rep.rec));
@@ -306,7 +310,7 @@ export class MainGameScene implements GameScene {
           const blob = JSON.stringify({ lineupReplay: 1, beach: best.beach, rider: best.rider, points: best.points, rec: best.rec });
           void navigator.clipboard?.writeText(blob).catch(() => undefined);
           console.log('[replay] ' + blob);
-          this.replayNote = `copied ${getBeach(best.beach).name} (${Math.round(blob.length / 1024)} KB, also in the console)`;
+          this.replayNote = `copied ${beachName(best.beach)} (${Math.round(blob.length / 1024)} KB, also in the console)`;
           this.audio.uiSelect();
         },
       });
@@ -322,8 +326,11 @@ export class MainGameScene implements GameScene {
           const parsed = JSON.parse(raw) as { lineupReplay?: number; beach?: string; rider?: string; points?: number; rec?: unknown };
           if (parsed.lineupReplay !== 1) throw new Error('not a replay');
           const rec = decodeRecording(parsed.rec);
-          if (typeof parsed.beach === 'string' && typeof parsed.points === 'number' && getBeach(parsed.beach)) {
-            this.career.recordReplay({ beach: parsed.beach, rider: typeof parsed.rider === 'string' ? parsed.rider : this.career.data.rider, points: parsed.points, when: Date.now() / 1000, rec: parsed.rec as SavedReplay['rec'] });
+          // only ids this build knows go into the save; anything else falls back or is not kept
+          const beachOk = typeof parsed.beach === 'string' && this.beaches.some((b) => b.id === parsed.beach);
+          const riderOk = typeof parsed.rider === 'string' && listRiders().some((r) => r.id === parsed.rider);
+          if (beachOk && typeof parsed.points === 'number' && Number.isFinite(parsed.points)) {
+            this.career.recordReplay({ beach: parsed.beach as string, rider: riderOk ? (parsed.rider as string) : this.career.data.rider, points: parsed.points, when: Date.now() / 1000, rec: parsed.rec as SavedReplay['rec'] });
           }
           this.playReplay(rec);
         } catch {
@@ -1091,7 +1098,7 @@ export class MainGameScene implements GameScene {
             this.split?.dispose();
             this.split = null;
             this.timeAttack = null;
-            this.input.setKeymap(KEYMAP_SOLO);
+            this.applyScheme();
             this.input.gamepadIndex = null;
             this.startRide(true);
             this.openMenu();

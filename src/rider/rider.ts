@@ -683,6 +683,10 @@ export class RiderSim {
     this.setState('wipeout');
     this.speed = 0;
     this.jumpLoad = 0;
+    // the board comes back straight: a slide that caused the wipeout must not cause the next one
+    this.boardYaw = 0;
+    this.slideSeconds = 0;
+    this.stanceModel.reset();
     this.events.emit('wipeout', { reason, u: this.u });
   }
 
@@ -711,6 +715,9 @@ export class RiderSim {
     this.speed = 0;
     this.fakie = false;
     this.jumpLoad = 0;
+    this.boardYaw = 0;
+    this.slideSeconds = 0;
+    this.stanceModel.reset();
     this.setState('prone');
     this.events.emit('respawn', { u: this.u });
   }
