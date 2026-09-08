@@ -116,6 +116,7 @@ export class ObjectViews {
     for (const [id, v] of this.views) {
       if (!seen.has(id)) {
         this.group.remove(v);
+        disposeTree(v);
         this.views.delete(id);
       }
     }
@@ -143,7 +144,21 @@ export class ObjectViews {
   }
 
   dispose(): void {
-    for (const v of this.views.values()) this.group.remove(v);
+    for (const v of this.views.values()) {
+      this.group.remove(v);
+      disposeTree(v);
+    }
     this.views.clear();
   }
+}
+
+/** Free the GL buffers of everything under an object; every view builds its own geometries and materials. */
+export function disposeTree(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.geometry) m.geometry.dispose();
+    const mat = m.material as THREE.Material | THREE.Material[] | undefined;
+    if (Array.isArray(mat)) for (const x of mat) x.dispose();
+    else if (mat) mat.dispose();
+  });
 }

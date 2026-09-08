@@ -14,6 +14,7 @@
  */
 import * as THREE from 'three';
 import type { RiderState } from '@/rider/rider';
+import { smoothstep } from '@/core/math';
 
 type JointName =
   | 'pelvis'
@@ -279,11 +280,6 @@ function ball(r: number, mat: THREE.Material, y = 0): THREE.Mesh {
   m.position.y = y;
   m.castShadow = true;
   return m;
-}
-
-function smoothstep(a: number, b: number, x: number): number {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
 }
 
 /** A momentary face: something happened and the character shows it for a second or two. */

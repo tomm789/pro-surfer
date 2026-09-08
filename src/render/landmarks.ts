@@ -4,7 +4,9 @@
  */
 import * as THREE from 'three';
 import type { Beach } from '@/world/beach';
+import { Rng, hashString } from '@/core/rng';
 import { SKY_PRESETS } from './waterUniforms';
+import { disposeTree } from './objectViews';
 
 const SHORE_Z = -150;
 const REPEAT = 260;
@@ -13,12 +15,10 @@ function mat(color: number | string, roughness = 0.9): THREE.MeshStandardMateria
   return new THREE.MeshStandardMaterial({ color, roughness, flatShading: true });
 }
 
-function seeded(seed: number): () => number {
-  let s = seed >>> 0;
-  return () => {
-    s = (s * 1664525 + 1013904223) >>> 0;
-    return s / 4294967296;
-  };
+/** A deterministic stream per beach id, so two beaches never share the same hills and boats. */
+function seeded(id: string): () => number {
+  const rng = new Rng(hashString(id));
+  return () => rng.next();
 }
 
 function hills(rng: () => number, width: number, height: number, color: number | string, count = 7): THREE.Group {
@@ -114,7 +114,7 @@ export class Landmarks {
   constructor(beach: Beach) {
     const preset = SKY_PRESETS[beach.look.sky];
     const kinds = new Set(beach.look.landmarks);
-    const rng = seeded(beach.id.length * 7919 + 17);
+    const rng = seeded(beach.id);
     if (kinds.has('pool')) {
       this.foil = foilTrain();
       this.group.add(this.foil);
@@ -328,6 +328,15 @@ export class Landmarks {
   }
 
   dispose(): void {
-    for (const t of this.tiles) this.group.remove(t);
+    // every ride builds its own tiles and carriage, so their buffers go with it
+    for (const t of this.tiles) {
+      this.group.remove(t);
+      disposeTree(t);
+    }
+    if (this.foil) {
+      this.group.remove(this.foil);
+      disposeTree(this.foil);
+      this.foil = null;
+    }
   }
 }

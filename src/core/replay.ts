@@ -139,7 +139,13 @@ export function decodeRecording(c: unknown): Recording {
     });
     return { f: row[0]!, i, c: row[2 + AXES.length] === 1 };
   });
-  return { hz: r.hz, seed: r.seed, params: r.params, keys, frames: r.frames, highlight: r.highlight ?? null };
+  // the highlight is optional but when present it must be a real frame window, or the replay would seek to NaN
+  const h = r.highlight as Partial<Highlight> | null | undefined;
+  const highlight: Highlight | null =
+    h && typeof h === 'object' && Number.isInteger(h.startFrame) && Number.isInteger(h.endFrame) && typeof h.points === 'number' && Number.isFinite(h.points)
+      ? { startFrame: h.startFrame!, endFrame: h.endFrame!, points: h.points! }
+      : null;
+  return { hz: r.hz, seed: r.seed, params: r.params, keys, frames: r.frames, highlight };
 }
 
 /** Tracks the highest-scoring chain's frame window so the replay can jump straight to it. */

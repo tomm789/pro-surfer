@@ -173,8 +173,8 @@ export class Hud {
   private lastIconsKey = '';
   private bankTimer = 0;
   private ratingTimer = 0;
-  private lastScore = -1;
   private shownScore = 0;
+  private lastObjectiveKey = '';
 
   constructor(parent: HTMLElement) {
     if (!document.getElementById('hud-css')) {
@@ -269,9 +269,6 @@ export class Hud {
 
   update(s: HudState, dt: number): void {
     // score counts up toward the real value
-    if (this.lastScore !== s.score) {
-      this.lastScore = s.score;
-    }
     if (this.shownScore !== s.score) {
       const diff = s.score - this.shownScore;
       this.shownScore = Math.abs(diff) < 50 ? s.score : this.shownScore + Math.sign(diff) * Math.max(50, Math.abs(diff) * Math.min(1, dt * 8));
@@ -293,10 +290,15 @@ export class Hud {
     this.meterLabel.className = 'meterlabel' + (yellow ? ' yellow' : '');
     this.meterLabel.textContent = yellow ? 'SPECIAL · LINK ANYTHING' : 'SPECIAL';
     this.special.textContent = s.specialTime > 0 ? `special time ${s.specialTime.toFixed(1)}s` : '';
-    this.objective.innerHTML = '';
-    if (s.objective.length) {
-      el(this.objective, 'title', s.objective[0]!);
-      for (const line of s.objective.slice(1)) el(this.objective, '', line);
+    // the objective lines change when a goal ticks, not every frame: rebuild only then
+    const objectiveKey = s.objective.join('\n');
+    if (objectiveKey !== this.lastObjectiveKey) {
+      this.lastObjectiveKey = objectiveKey;
+      this.objective.innerHTML = '';
+      if (s.objective.length) {
+        el(this.objective, 'title', s.objective[0]!);
+        for (const line of s.objective.slice(1)) el(this.objective, '', line);
+      }
     }
     if (s.chainOpen) {
       // a long chain would run off both edges of the screen, so only the tail is shown

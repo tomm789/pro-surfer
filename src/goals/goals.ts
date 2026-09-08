@@ -135,6 +135,13 @@ const TURN_WORDS: Record<string, string> = {
   carve: 'carve',
 };
 
+/** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th, 21st. */
+function ordinal(n: number): string {
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? 'th' : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th';
+  return `${n}${suffix}`;
+}
+
 function zoneLabel(g: Extract<Goal, { type: 'zone' }>): string {
   const where = g.zone === 'barrel' ? 'in the barrel section' : g.zone === 'ramp' ? 'off the ramp' : 'on the wall';
   const s = g.count > 1 ? 's' : '';
@@ -176,7 +183,7 @@ export function goalLabel(g: Goal): string {
     case 'photo':
       return `${g.target.toLocaleString('en-US')} in ${g.mode === 'best' ? 'one photo' : `${g.shots} photos`}${g.special ? ' (special trick)' : ''}`;
     case 'contest':
-      return `Place ${g.place === 1 ? '1st' : g.place === 2 ? '2nd+' : `${g.place}rd+`}`;
+      return `Place ${ordinal(g.place)}${g.place > 1 ? '+' : ''}`;
     case 'objects':
       return `${g.action[0]!.toUpperCase()}${g.action.slice(1)} ${g.count} ${g.object}s`;
     case 'zone':

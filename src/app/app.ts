@@ -38,6 +38,8 @@ export class App {
   private params: URLSearchParams;
   private lastFrameMs = 0;
   private inputOverride: Record<string, unknown> | null = null;
+  private needsResize = true;
+  private lastCamera: unknown = null;
   readonly readyPromise: Promise<void>;
   private resolveReady!: () => void;
 
@@ -68,7 +70,7 @@ export class App {
     await this.scene.init(ctx);
     resizeRendererToContainer(this.renderer, this.container, this.scene.cameras());
     window.addEventListener('resize', () => {
-      if (this.scene) resizeRendererToContainer(this.renderer, this.container, this.scene.cameras());
+      this.needsResize = true;
     });
     const t = Number(this.params.get('t') ?? 0);
     if (t > 0) this.stepTo(t);
@@ -100,7 +102,13 @@ export class App {
 
   private renderOnce(alpha: number): void {
     if (!this.scene) return;
-    resizeRendererToContainer(this.renderer, this.container, this.scene.cameras());
+    // reading the container's size forces a layout, so only do it after a resize or a camera change
+    const cams = this.scene.cameras();
+    if (this.needsResize || cams[0] !== this.lastCamera) {
+      resizeRendererToContainer(this.renderer, this.container, cams);
+      this.needsResize = false;
+      this.lastCamera = cams[0];
+    }
     this.scene.render(alpha);
   }
 

@@ -45,6 +45,10 @@ export class RiderView {
   private r = new THREE.Vector3();
   private surfaceUp = new THREE.Vector3();
   private tmp = new THREE.Vector3();
+  // scratch for the per-frame rotations, so the hot path allocates nothing
+  private bank = new THREE.Quaternion();
+  private spin = new THREE.Quaternion();
+  private spinEuler = new THREE.Euler();
 
   constructor(boardLength = 1.9, look: SurferLook = DEFAULT_LOOK) {
     this.model = new SurferModel(look, boardLength);
@@ -71,8 +75,8 @@ export class RiderView {
     // bank the board onto its rail; a committed rail buries it further than the steering alone
     if (state === 'face' || state === 'floater') {
       const rail = Math.abs(input.rail) > Math.abs(input.lean) ? input.rail : input.lean;
-      const bank = new THREE.Quaternion().setFromAxisAngle(this.f, -rail * 0.7);
-      this.u.applyQuaternion(bank);
+      this.bank.setFromAxisAngle(this.f, -rail * 0.7);
+      this.u.applyQuaternion(this.bank);
     }
     this.r.crossVectors(this.u, this.f).normalize();
     this.u.crossVectors(this.f, this.r).normalize();
@@ -80,8 +84,9 @@ export class RiderView {
     this.q.setFromRotationMatrix(this.basis);
     if (state === 'wipeout') {
       this.tumble += dt * 6;
-      const spin = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.tumble * 0.7, this.tumble, this.tumble * 0.4));
-      this.q.multiply(spin);
+      this.spinEuler.set(this.tumble * 0.7, this.tumble, this.tumble * 0.4);
+      this.spin.setFromEuler(this.spinEuler);
+      this.q.multiply(this.spin);
     }
     this.group.quaternion.copy(this.q);
     this.model.update(dt, state, { ...input, fakie: pose.fakie });
