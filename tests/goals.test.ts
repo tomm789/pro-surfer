@@ -61,8 +61,8 @@ describe('goal tracker', () => {
     for (const id of ['snap', 'rebound', 'gouge', 'tailChuck', 'laybackSlide', 'revertCutback']) r.land(id, 'face');
     r.land('indy', 'air', Math.PI * 2);
     r.land('method', 'air', Math.PI * 2);
-    r.riderEvents.emit('land', { rating: 'perfect', errorRad: 0, fakie: false, spins180: 2, u: 0, v: 0, airTime: 1, speed: 8 });
-    r.riderEvents.emit('land', { rating: 'perfect', errorRad: 0, fakie: false, spins180: 2, u: 0, v: 0, airTime: 1, speed: 8 });
+    r.riderEvents.emit('land', { rating: 'perfect', errorRad: 0, fakie: false, spins180: 2, flips: 0, rollErrorRad: 0, u: 0, v: 0, airTime: 1, speed: 8 });
+    r.riderEvents.emit('land', { rating: 'perfect', errorRad: 0, fakie: false, spins180: 2, flips: 0, rollErrorRad: 0, u: 0, v: 0, airTime: 1, speed: 8 });
     r.run.cashIn();
     r.step(2);
     expect(r.done).toContain('score');
@@ -71,8 +71,8 @@ describe('goal tracker', () => {
     expect(r.goals.requiredDone).toBe(true);
     expect(r.goals.hudLines().length).toBe(4);
     const rot = rig('pointbreak-1');
-    rot.riderEvents.emit('land', { rating: 'perfect', errorRad: 0, fakie: false, spins180: 2, u: 0, v: 0, airTime: 1, speed: 8 });
-    rot.riderEvents.emit('land', { rating: 'sloppy', errorRad: 0, fakie: false, spins180: 3, u: 0, v: 0, airTime: 1, speed: 8 });
+    rot.riderEvents.emit('land', { rating: 'perfect', errorRad: 0, fakie: false, spins180: 2, flips: 0, rollErrorRad: 0, u: 0, v: 0, airTime: 1, speed: 8 });
+    rot.riderEvents.emit('land', { rating: 'sloppy', errorRad: 0, fakie: false, spins180: 3, flips: 0, rollErrorRad: 0, u: 0, v: 0, airTime: 1, speed: 8 });
     rot.step(1);
     expect(rot.done).toContain('rot');
   });
@@ -143,7 +143,7 @@ describe('zone goals (the pool)', () => {
     const prog = (id: string) => goals.progress.find((p) => p.goal.id === id)!;
     const air = (from: number) => {
       r.riderEvents.emit('launch', { speed: 9, heading: 0.6, power: 1, u: from, v: 0.9 });
-      r.riderEvents.emit('land', { rating: 'perfect', errorRad: 0, fakie: false, spins180: 0, u: from + 6, v: 0.3, airTime: 1, speed: 8 });
+      r.riderEvents.emit('land', { rating: 'perfect', errorRad: 0, fakie: false, spins180: 0, flips: 0, rollErrorRad: 0, u: from + 6, v: 0.3, airTime: 1, speed: 8 });
       goals.update(DT);
     };
     air(ramp);

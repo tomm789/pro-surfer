@@ -73,7 +73,7 @@ export class TrickSystem {
     private catalogue: TrickCatalogue = TRICKS,
   ) {
     this.sequencer = new InputSequencer(catalogue, tuning.input);
-    riderEvents.on('land', (e) => this.onLand(e.rating, e.spins180, e.u));
+    riderEvents.on('land', (e) => this.onLand(e.rating, e.spins180, e.flips ?? 0));
     riderEvents.on('wipeout', () => this.onWipeout());
     riderEvents.on('launch', () => {
       this.pendingAir = [];
@@ -239,7 +239,7 @@ export class TrickSystem {
     this.events.emit('trickFail', { trick: t, reason });
   }
 
-  private onLand(rating: 'perfect' | 'sloppy' | 'wipeout', spins180: number, _u: number): void {
+  private onLand(rating: 'perfect' | 'sloppy' | 'wipeout', spins180: number, flips: number): void {
     if (rating === 'wipeout') {
       for (const a of this.pendingAir) this.events.emit('trickFail', { trick: a.trick, reason: 'wipeout' });
       this.pendingAir = [];
@@ -249,7 +249,11 @@ export class TrickSystem {
     for (const a of this.pendingAir) {
       this.events.emit('trickLand', { trick: a.trick, section: 'air', aheadOfCurl: this.rider.aheadOfCurl, rotation, landing: rating, atLip: false });
     }
-    if (!this.pendingAir.length) {
+    // a completed roll is a flip in its own right, grabbed or not; with a spin on top it is a rodeo
+    if (flips > 0) {
+      const trick = flipTrick(flips, spins180, this.tuning.scoring.base.flip);
+      this.events.emit('trickLand', { trick, section: 'air', aheadOfCurl: this.rider.aheadOfCurl, rotation, landing: rating, atLip: false });
+    } else if (!this.pendingAir.length) {
       // A plain air with no grab and no rotation is still a manoeuvre — getting off the lip and landing
       // it is the whole point of the pop — so it scores, modestly, as itself.
       const trick = spins180 > 0 ? spinTrick(spins180, this.tuning.scoring.base.plainSpin) : plainAir(this.tuning.scoring.base.plainSpin);
@@ -327,6 +331,23 @@ export function plainAir(base: number): Trick {
 }
 
 /** A rotation-only air: base from tuning (scoring.base.plainSpin), the rotation factor does the rest. */
+/** A roll about the board's long axis landed flat: a flip, a double flip, or a rodeo when it carries a spin. */
+export function flipTrick(flips: number, spins180: number, base: number): Trick {
+  const spun = spins180 >= 1;
+  const name = `${flips >= 3 ? 'Triple ' : flips === 2 ? 'Double ' : ''}${spun ? 'Rodeo' : 'Flip'}${spun && spins180 > 1 ? ` ${spins180 * 180}` : ''}`;
+  return {
+    id: `${spun ? 'rodeo' : 'flip'}${flips}`,
+    name,
+    section: 'air',
+    input: { kind: 'dir', button: 'carve', direction: 'up' },
+    base: base * flips,
+    meter: 0.12,
+    duration: 0,
+    special: flips >= 2 || (spun && spins180 >= 2),
+    icon: 'air',
+  };
+}
+
 export function spinTrick(spins180: number, base = 0): Trick {
   const deg = spins180 * 180;
   return {

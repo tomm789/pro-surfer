@@ -81,6 +81,8 @@ export class RiderSim {
   readonly airPos = v3();
   readonly airVel = v3();
   airYaw = 0;
+  /** Roll about the board's long axis in the air, radians: the flip (stick scheme, from the rail). */
+  airRoll = 0;
   launchHeading = 0;
   airTime = 0;
   private launchUp = v3(0, 1, 0);
@@ -576,6 +578,7 @@ export class RiderSim {
     v3Set(this.launchForward, cosH * s.tu.x + sinH * s.tv.x, cosH * s.tu.y + sinH * s.tv.y, cosH * s.tu.z + sinH * s.tv.z);
     this.launchHeading = this.heading;
     this.airYaw = 0;
+    this.airRoll = 0;
     this.airTime = 0;
     this.setState('air');
     this.events.emit('launch', { speed: this.speed, heading: this.heading, power, u: this.u, v: this.v });
@@ -601,6 +604,8 @@ export class RiderSim {
     if (spinIn === 0) spinIn = this.dual ? clamp(st.twist * S.airTwistScale, -1, 1) : input.stickX;
     const tuck = this.dual ? 1 + S.tuckSpinBonus * Math.max(0, st.compression) : 1;
     this.airYaw += spinRate * tuck * spinIn * dt;
+    // the rail is the flip axis: both feet leaning the same way in flight rolls the board over
+    if (this.dual) this.airRoll += S.airRollRate * st.rail * tuck * dt;
     // track wave-space u so the wave/camera know where we are
     this.u = this.wave.params.direction * this.airPos.x;
     const dTarget = -this.airPos.z;
@@ -648,7 +653,7 @@ export class RiderSim {
     // landing with the legs loaded absorbs it; landing locked out does not
     const S = this.tuning.stance;
     const absorb = (this.dual ? 1 + S.landAbsorb * Math.max(0, this.stanceModel.state.compression) : 1) * (this.assists ? 1 : S.proLandingWindow);
-    const j = judgeLanding(this.launchHeading, boardYaw, A.perfectWindowDeg * absorb, A.sloppyWindowDeg * absorb, this.airYaw);
+    const j = judgeLanding(this.launchHeading, boardYaw, A.perfectWindowDeg * absorb, A.sloppyWindowDeg * absorb, this.airYaw, this.airRoll, A.rollPerfectDeg * absorb, A.rollSloppyDeg * absorb);
     this.lastLanding = j;
     const airTime = this.airTime;
     if (j.rating === 'wipeout') {
@@ -733,9 +738,24 @@ export class RiderSim {
       const cy = up.z * f.x - up.x * f.z;
       const cz = up.x * f.y - up.y * f.x;
       v3Set(out.forward, f.x * c + cx * sn + up.x * dot * (1 - c), f.y * c + cy * sn + up.y * dot * (1 - c), f.z * c + cz * sn + up.z * dot * (1 - c));
-      // blend up toward world up mid-air
+      // blend up toward world up mid-air, then roll it about the board's long axis for the flip
       const tu = clamp(this.airTime * 2, 0, 0.6);
       v3Set(out.up, lerp(up.x, 0, tu), lerp(up.y, 1, tu), lerp(up.z, 0, tu));
+      if (this.airRoll !== 0) {
+        const fw = out.forward;
+        const fl = Math.hypot(fw.x, fw.y, fw.z) || 1;
+        const ax = fw.x / fl;
+        const ay = fw.y / fl;
+        const az = fw.z / fl;
+        const cr = Math.cos(this.airRoll);
+        const sr = Math.sin(this.airRoll);
+        const u2 = out.up;
+        const d = ax * u2.x + ay * u2.y + az * u2.z;
+        const rx = ay * u2.z - az * u2.y;
+        const ry = az * u2.x - ax * u2.z;
+        const rz = ax * u2.y - ay * u2.x;
+        v3Set(out.up, u2.x * cr + rx * sr + ax * d * (1 - cr), u2.y * cr + ry * sr + ay * d * (1 - cr), u2.z * cr + rz * sr + az * d * (1 - cr));
+      }
     } else {
       this.wave.sample(this.u, this.v, s);
       const lift = this.state === 'wipeout' ? 0.05 : 0.12;
@@ -798,6 +818,7 @@ export class RiderSim {
         : null,
       airTime: +this.airTime.toFixed(2),
       airYawDeg: +((this.airYaw * 180) / Math.PI).toFixed(0),
+      airRollDeg: +((this.airRoll * 180) / Math.PI).toFixed(0),
       lastLanding: this.lastLanding?.rating ?? null,
       lastWipeout: this.lastWipeout,
       wipeouts: this.wipeouts,

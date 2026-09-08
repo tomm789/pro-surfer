@@ -94,3 +94,5 @@ The pool has zones (`beach.zones`): a lap passes through a barrel section, a wal
   `cam=portrait`.
 - Air grabs read from the foot shape under a held hand (`feet` in `data/tricks.json`, MECHANICS §6),
   and a Trick Book that describes shapes and the recogniser's real thresholds in the stick scheme.
+- The flip axis: the rail rolls the board in the air, landings are judged on roll as well as yaw, and
+  a full roll lands as a Flip or a Rodeo (`stance.airRollRate`, `air.rollPerfectDeg`, `rollSloppyDeg`).

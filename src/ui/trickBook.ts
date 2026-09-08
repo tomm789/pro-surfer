@@ -90,6 +90,7 @@ function bodyPage(): Page {
       { name: 'Pivot / slide', how: 'sticks lean opposite ways; past the grip the tail lets go', value: 'twist' },
       { name: 'Pump', how: 'extend while climbing, crouch while dropping — in time with the face', value: 'pump' },
       { name: 'Pop', how: 'crouch, then flick both sticks up at the lip', value: 'launch' },
+      { name: 'Spin / flip', how: 'in the air: sticks opposite ways to spin, both the same way to flip; land flat', value: 'air' },
       { name: 'Floater', how: 'unweight (both up) over the foam, crouch to hold it', value: 'floater' },
       { name: 'Barrel', how: 'press the tail to stall into it, crouch to fit, small leans for balance', value: 'tube' },
     ],

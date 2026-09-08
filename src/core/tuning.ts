@@ -83,6 +83,8 @@ export const TuningSchema = z.object({
     stallTrim: z.number(),
     tuckSpinBonus: z.number().nonnegative(),
     airTwistScale: z.number().nonnegative(),
+    /** Roll rate in the air per unit of rail, rad/s: the flip axis (docs/MECHANICS.md §5). */
+    airRollRate: z.number().nonnegative(),
     landAbsorb: z.number().nonnegative(),
     /** Pro mode (assists off) only removes help — see docs/MECHANICS.md §9. */
     proLevelRate: z.number().nonnegative(),
@@ -129,6 +131,9 @@ export const TuningSchema = z.object({
     launchMinV: z.number().min(0).max(1),
     launchMinHeading: z.number(),
     airTimeoutSeconds: z.number().positive(),
+    /** Landing windows on the roll residual (degrees from flat), judged alongside the yaw. */
+    rollPerfectDeg: z.number().positive(),
+    rollSloppyDeg: z.number().positive(),
     landSpeedKeepPerfect: z.number().min(0).max(1.5),
     landSpeedKeepSloppy: z.number().min(0).max(1.5),
   }),

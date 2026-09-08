@@ -83,6 +83,7 @@
     "stallTrim": -0.25,
     "tuckSpinBonus": 0.55,
     "airTwistScale": 1.5,
+    "airRollRate": 5.0,
     "landAbsorb": 0.4,
     "proLevelRate": 0.25,
     "proTrimDrive": 0.0,
@@ -134,6 +135,8 @@
     "launchMinV": 0.8,
     "launchMinHeading": 0.2,
     "airTimeoutSeconds": 6,
+    "rollPerfectDeg": 25,
+    "rollSloppyDeg": 60,
     "landSpeedKeepPerfect": 0.92,
     "landSpeedKeepSloppy": 0.72
   },
