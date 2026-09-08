@@ -34,6 +34,9 @@ export interface HudState {
   stance: { backX: number; backY: number; frontX: number; frontY: number; rail: number; compression: number; load: number } | null;
 }
 
+/** How many links of an open chain the HUD shows; the rest are summarised as a count. */
+const CHAIN_SHOWN = 4;
+
 const CSS = `
 .hud .stance{position:absolute;left:24px;bottom:64px;width:132px;opacity:.9}
 .hud .stance .pads{display:flex;gap:10px}
@@ -62,7 +65,7 @@ const CSS = `
 .hud .tl{position:absolute;top:18px;left:24px;font-size:15px;font-weight:700;line-height:1.5;white-space:pre}
 .hud .tl .title{font-size:13px;letter-spacing:2px;color:#bfe9ff;font-weight:800}
 .hud .bc{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);text-align:center;min-width:320px}
-.hud .chain{font-size:22px;font-weight:800;color:#ffffff;white-space:nowrap}
+.hud .chain{font-size:22px;font-weight:800;color:#ffffff;white-space:nowrap;max-width:74vw;margin:0 auto;overflow:hidden;text-overflow:ellipsis}
 .hud .chain .sp{color:#ffe27a}
 .hud .chainmath{font-size:16px;font-weight:700;color:#bfe9ff;margin-top:2px;font-variant-numeric:tabular-nums}
 .hud .bank{position:absolute;left:50%;bottom:104px;transform:translateX(-50%);font-size:34px;font-weight:900;color:#ffe27a;opacity:0;transition:opacity .15s}
@@ -280,10 +283,15 @@ export class Hud {
       for (const line of s.objective.slice(1)) el(this.objective, '', line);
     }
     if (s.chainOpen) {
-      this.chain.innerHTML = s.chainLabel
-        .split(' + ')
-        .map((n) => (/[A-Z]/.test(n) && n.length > 3 ? `<span>${escapeHtml(n)}</span>` : escapeHtml(n)))
-        .join(' <span class="sp">+</span> ');
+      // a long chain would run off both edges of the screen, so only the tail is shown
+      const parts = s.chainLabel.split(' + ');
+      const shown = parts.slice(-CHAIN_SHOWN);
+      const lead = parts.length > shown.length ? `<span class="sp">+${parts.length - shown.length} </span>` : '';
+      this.chain.innerHTML =
+        lead +
+        shown
+          .map((n) => (/[A-Z]/.test(n) && n.length > 3 ? `<span>${escapeHtml(n)}</span>` : escapeHtml(n)))
+          .join(' <span class="sp">+</span> ');
       this.chainMath.textContent = `${Math.round(s.chainBase).toLocaleString('en-US')} × ${s.chainMultiplier}`;
     } else {
       this.chain.textContent = '';

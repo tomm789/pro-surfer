@@ -19,13 +19,14 @@ The stance model has been verified by measurement (`tests/stance.test.ts`, `test
 - [ ] **Assists**: `career.options.assists` is stored but nothing reads it yet. Implement the four assists in MECHANICS §9 (auto-trim, pump assist, rotation assist, landing assist) and default them on, with a Pro toggle that turns all four off.
 - [ ] Classic scheme regression: it is still selectable and every lesson has classic hints; check it still plays after any stance change.
 
-## P0 — the pool needs shape
+## P1 — more from the pool
 
-The pool wave is deliberately uniform and never closes out, which gives the long ride it should. The cost is that nothing ever prompts the player to do anything: a virtual player settled into a groove and did four turns in two minutes. The real venue solves this with named sections along its length.
+The pool now has zones (`beach.zones`): a lap passes through a barrel section, a wall and a ramp, and `wave.zoneAt(u)` names them. What is missing is the game *using* that structure.
 
-- [ ] Vary the pool wave along `u` — a barrel section, a ramp/air section, a soft turn section — so a lap has structure. Probably an optional per-beach modulation of hollowness in `src/wave/wave.ts` (`profileAt`), defaulted off so the ocean breaks are untouched.
-- [ ] Give the sections names and let goals reference them ("get barrelled in the tube section").
-- [ ] The foil carriage is currently decoration at a fixed lead. Tie its speed and the wave's `breakSpeed` together explicitly, and show it starting a lap.
+- [ ] Surface the zones: tell the player what is coming ("barrel section in 3…2…1"), the way the section warning already works for ocean breaks.
+- [ ] Goals that reference a zone ("get barrelled in the barrel section", "land an air off the ramp").
+- [ ] The foil carriage is decoration at a fixed lead. Tie its speed to `breakSpeed` explicitly and show it starting a lap.
+- [ ] Tune the zone shape with a controller: `wavelength` 140 m, `hollowAmp` 0.45, `heightAmp` 0.12 are a first guess.
 
 ## P1 — visual identity (the biggest gap)
 
@@ -75,5 +76,9 @@ The pool wave is deliberately uniform and never closes out, which gives the long
 - Dual-stick foot control (`docs/MECHANICS.md`, `src/rider/stance.ts`), with the classic scheme kept selectable.
 - Skate-style close third person and a rigid first person with the front foot and board nose in frame.
 - Stylised character driven continuously by the stance.
-- Long Pool venue with the foil carriage; the default venue.
+- Long Pool venue with the foil carriage and zones along its length; the default venue.
 - Emergent turn recognition feeding the existing chain scoring.
+- Stance readout on the HUD; Options submenu; assists as a Pro toggle.
+- Onboarding tests that drive the real lessons, and a smoke test that drives a scored run through the
+  game shell — added after a bug where the recogniser was never constructed in the real game and a
+  full run scored zero while the ride scene scored fine in isolation.
