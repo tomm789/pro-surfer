@@ -12,7 +12,7 @@ import { Scrapbook } from '@/save/scrapbook';
 import { ScrapbookScreen } from '@/ui/scrapbook';
 import { RideScene } from './rideScene';
 import { SplitScene, type SplitMode } from './splitScene';
-import { KEYMAP_P1, KEYMAP_P2, KEYMAP_SOLO, keymapHint } from '@/input/keymaps';
+import { KEYMAP_DUAL, KEYMAP_P1, KEYMAP_P2, KEYMAP_SOLO, keymapHint } from '@/input/keymaps';
 import { timeAttackSeconds } from '@/modes/push';
 import { CareerSave } from '@/save/career';
 import { listLevels, listLessons, getLevel } from '@/goals/levels';
@@ -89,9 +89,21 @@ export class MainGameScene implements GameScene {
     };
   }
 
+  /** The scheme in force: dual-stick unless the player switched it (docs/MECHANICS.md). */
+  private get scheme(): 'dual' | 'classic' {
+    const p = this.ctx.params.get('controls');
+    if (p === 'classic' || p === 'dual') return p;
+    return this.career.data.options.controls;
+  }
+
+  private applyScheme(): void {
+    this.input.setKeymap(this.scheme === 'dual' ? KEYMAP_DUAL : KEYMAP_SOLO);
+  }
+
   init(ctx: SceneContext): void {
     this.ctx = ctx;
     this.transition = new Transition(ctx.uiRoot);
+    this.applyScheme();
     this.input.attach(window);
     this.input2.attach(window);
     this.boot = new BootScreen(ctx.uiRoot, 'LINE-UP', 'SURF · TRICK · LINK · CASH IN', 'PRESS ANY KEY OR BUTTON<br><span style="font-size:13px;letter-spacing:1px;opacity:.8">(press a key or click once for sound)</span>');
@@ -140,6 +152,7 @@ export class MainGameScene implements GameScene {
     params.set('rider2', this.availableRiders()[this.rider2Index % this.availableRiders().length]!.id);
     params.set('board', this.availableBoards()[this.boardIndex]!.id);
     params.set('handicap', String(this.handicap));
+    params.set('controls', this.scheme);
     if (this.ctx.params.get('auto') === '1') params.set('auto2', '1');
     const pads = InputManager.padCount();
     const hints: [string, string] = [
@@ -279,6 +292,9 @@ export class MainGameScene implements GameScene {
       params.set('learned', this.career.data.rewards.filter((r) => r.startsWith('trick:')).map((r) => r.slice(6)).join(','));
     }
     if (background) params.delete('level');
+    // the attract-mode autopilot steers with the single-stick model, so the menu background stays classic
+    params.set('controls', background ? 'classic' : this.scheme);
+    if (!background) params.set('cam', this.career.data.options.camera);
     params.set('rider', this.availableRiders()[this.riderIndex]!.id);
     params.set('board', this.availableBoards()[this.boardIndex]!.id);
     this.ride = new RideScene();
@@ -393,6 +409,30 @@ export class MainGameScene implements GameScene {
           onSelect: () => {
             this.audio.uiSelect();
             this.openRecords();
+          },
+        },
+        {
+          id: 'controls',
+          label: 'Controls',
+          value: () => (this.scheme === 'dual' ? 'Dual-stick (feet)' : 'Classic (one stick)'),
+          onAdjust: () => {
+            const o = this.career.data.options;
+            o.controls = o.controls === 'dual' ? 'classic' : 'dual';
+            this.career.save();
+            this.applyScheme();
+            this.audio.uiMove();
+            this.startRide(true);
+          },
+        },
+        {
+          id: 'camera',
+          label: 'Camera',
+          value: () => (this.career.data.options.camera === 'first' ? 'First person' : 'Third person'),
+          onAdjust: () => {
+            const o = this.career.data.options;
+            o.camera = o.camera === 'first' ? 'chase' : 'first';
+            this.career.save();
+            this.audio.uiMove();
           },
         },
         {

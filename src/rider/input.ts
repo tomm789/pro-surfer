@@ -2,6 +2,12 @@
 export interface RiderInput {
   stickX: number;
   stickY: number;
+  /** Back foot (left stick). Down presses the foot: see docs/MECHANICS.md §1. */
+  backX: number;
+  backY: number;
+  /** Front foot (right stick). */
+  frontX: number;
+  frontY: number;
   jump: boolean;
   carve: boolean;
   grab: boolean;
@@ -19,6 +25,10 @@ export interface RiderInput {
 export const NEUTRAL_INPUT: Readonly<RiderInput> = Object.freeze({
   stickX: 0,
   stickY: 0,
+  backX: 0,
+  backY: 0,
+  frontX: 0,
+  frontY: 0,
   jump: false,
   carve: false,
   grab: false,

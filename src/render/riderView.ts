@@ -12,6 +12,14 @@ export interface RiderViewInput {
   trickId: string | null;
   tubeDepth: number;
   airTime: number;
+  /** Stance quantities the body reacts to (docs/MECHANICS.md §7). */
+  compression: number;
+  trim: number;
+  rail: number;
+  twist: number;
+  pumpWork: number;
+  /** Board yaw relative to travel, radians. */
+  boardYaw: number;
 }
 
 /** Places and poses the surfer model from the sim's world pose. */
@@ -30,15 +38,21 @@ export class RiderView {
     this.group.add(this.model.group);
   }
 
+  /** Hide the head and torso when the camera sits inside them. */
+  setFirstPerson(on: boolean): void {
+    this.model.setFirstPerson(on);
+  }
+
   update(pose: RiderPose, state: RiderState, dt: number, input: RiderViewInput): void {
     const p = pose.pos;
     this.group.position.set(p.x, p.y, p.z);
     this.f.set(pose.forward.x, pose.forward.y, pose.forward.z);
     if (pose.fakie) this.f.negate();
     this.u.set(pose.up.x, pose.up.y, pose.up.z);
-    // bank the board into carves
+    // bank the board onto its rail; a committed rail buries it further than the steering alone
     if (state === 'face' || state === 'floater') {
-      const bank = new THREE.Quaternion().setFromAxisAngle(this.f, -input.lean * 0.55);
+      const rail = Math.abs(input.rail) > Math.abs(input.lean) ? input.rail : input.lean;
+      const bank = new THREE.Quaternion().setFromAxisAngle(this.f, -rail * 0.7);
       this.u.applyQuaternion(bank);
     }
     this.r.crossVectors(this.u, this.f).normalize();

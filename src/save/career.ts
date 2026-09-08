@@ -9,6 +9,8 @@ export interface CareerData {
   board: string;
   stats: { spin: number; speed: number; air: number; balance: number };
   records: { bestScore: number; bestChain: number; longestTube: number; mostSpecialTime: number; perBeach: Record<string, number>; byRider: Record<string, number> };
+  /** Player options (docs/MECHANICS.md §9). */
+  options: { controls: 'dual' | 'classic'; camera: 'chase' | 'first'; assists: boolean };
 }
 
 const KEY = 'lineup.career.v1';
@@ -35,6 +37,7 @@ export function defaultCareer(): CareerData {
     board: 'thruster',
     stats: { spin: 0, speed: 0, air: 0, balance: 0 },
     records: { bestScore: 0, bestChain: 0, longestTube: 0, mostSpecialTime: 0, perBeach: {}, byRider: {} },
+    options: { controls: 'dual', camera: 'chase', assists: true },
   };
 }
 
@@ -53,7 +56,8 @@ export class CareerSave {
       if (!raw) return defaultCareer();
       const parsed = JSON.parse(raw) as Partial<CareerData>;
       if (parsed.version !== 1) return defaultCareer();
-      return { ...defaultCareer(), ...parsed };
+      const base = defaultCareer();
+      return { ...base, ...parsed, options: { ...base.options, ...(parsed.options ?? {}) } };
     } catch {
       return defaultCareer();
     }

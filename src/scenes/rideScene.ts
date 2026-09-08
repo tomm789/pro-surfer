@@ -15,6 +15,7 @@ import { RiderView } from '@/render/riderView';
 import { SpraySystem } from '@/render/spray';
 import { ChaseCamera } from '@/render/chaseCamera';
 import { InputManager } from '@/input/inputManager';
+import { KEYMAP_DUAL } from '@/input/keymaps';
 import { TrickSystem, type TrickEvents } from '@/tricks/executor';
 import { RunController } from '@/scoring/run';
 import { Hud, type HudState } from '@/ui/hud';
@@ -249,9 +250,12 @@ export class RideScene implements GameScene {
     this.spray = new SpraySystem();
     this.scene.add(this.spray.points);
     this.scene.add(this.objectViews.group);
+    // dual-stick is the default scheme (docs/MECHANICS.md); classic stays available
+    this.rider.controls = ctx.params.get('controls') === 'classic' ? 'classic' : 'dual';
+    if (this.rider.controls === 'dual') this.inputManager.setKeymap(KEYMAP_DUAL);
     this.cam = new ChaseCamera(TUNING);
     const camParam = ctx.params.get('cam');
-    if (camParam === 'wide' || camParam === 'close' || camParam === 'shore') this.cam.mode = camParam;
+    if (camParam === 'wide' || camParam === 'close' || camParam === 'shore' || camParam === 'first') this.cam.mode = camParam;
     this.rider.pose(this.pose);
     this.cam.snapTo(this.pose, this.wave.params.direction);
     if (!ctx.headless && !this.attract && !ctx.params.has('hosted')) this.inputManager.attach(window);
@@ -543,7 +547,10 @@ export class RideScene implements GameScene {
       this.director.update(dt, this.rider.state, this.rider.airTime);
       if (this.director.cut) this.cam.cut(this.director.mode);
     } else {
-      if (input.cameraToggle && !this.prevCameraToggle) this.cam.mode = this.cam.mode === 'chase' ? 'wide' : 'chase';
+      // third person → first person → wide → back
+      if (input.cameraToggle && !this.prevCameraToggle) {
+        this.cam.mode = this.cam.mode === 'chase' ? 'first' : this.cam.mode === 'first' ? 'wide' : 'chase';
+      }
       this.prevCameraToggle = input.cameraToggle;
     }
     if (!this.run.ended) {
@@ -613,9 +620,18 @@ export class RideScene implements GameScene {
       trickId: this.tricks.activeTrick?.id ?? this.tricks.pendingAirTricks[this.tricks.pendingAirTricks.length - 1]?.id ?? null,
       tubeDepth: r.tube.depth,
       airTime: r.airTime,
+      compression: r.stance.compression,
+      trim: r.stance.trim,
+      rail: r.stance.rail,
+      twist: r.stance.twist,
+      pumpWork: r.stance.pumpWork,
+      boardYaw: r.boardYaw,
     });
     this.updateSpray(dt, lean, speed01);
     this.spray.update(dt);
+    this.cam.stance.rail = r.stance.rail;
+    this.cam.stance.compression = r.stance.compression;
+    this.riderView.setFirstPerson(this.cam.firstPerson);
     this.cam.update(this.pose, this.wave.params.direction, this.rider.state, speed01, dt);
     this.updateHudState();
     this.hud.update(this.hudState, dt);
@@ -694,9 +710,13 @@ export class RideScene implements GameScene {
         ? this.controlsHint
         : this.inputManager.gamepadName
           ? `pad: ${this.inputManager.gamepadName.slice(0, 40)}`
-          : r.state === 'prone'
-            ? 'L / Y: stand up · ←→: paddle along the wave'
-            : 'arrows: turn · ↑ pump · ↓ stall (↓↓ super stall) · Space jump (hold, release at lip) · J carve · K grab · L slide/floater · Q/E spin · Enter cash in · Shift camera');
+          : this.rider.dual
+            ? r.state === 'prone'
+              ? 'left stick = back foot, right stick = front foot · press both down then flick up to pop to your feet'
+              : 'both sticks lean = carve · both down/up = crouch & pop · opposite = pivot · press the nose to drive, the tail to stall · K grab · Enter cash in · Shift camera'
+            : r.state === 'prone'
+              ? 'L / Y: stand up · ←→: paddle along the wave'
+              : 'arrows: turn · ↑ pump · ↓ stall (↓↓ super stall) · Space jump (hold, release at lip) · J carve · K grab · L slide/floater · Q/E spin · Enter cash in · Shift camera');
     s.debug = this.debug
       ? `state ${r.state}  speed ${r.speed.toFixed(1)}  v ${r.v.toFixed(2)}  ahead ${r.aheadOfCurl.toFixed(1)}  heading ${r.headingDeg.toFixed(0)}°  load ${(r.jumpLoad * 100).toFixed(0)}%\n` +
         `sections ${this.wave.sections.length}  yellow ${this.run.meter.totalYellowSeconds.toFixed(1)}s  best ${this.run.bestChain}\n` +

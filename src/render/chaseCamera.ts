@@ -2,7 +2,13 @@ import * as THREE from 'three';
 import type { Tuning } from '@/core/tuning';
 import type { RiderPose, RiderState } from '@/rider/rider';
 
-export type CameraMode = 'chase' | 'wide' | 'tube' | 'object' | 'close' | 'shore' | 'beach';
+export type CameraMode = 'chase' | 'wide' | 'tube' | 'object' | 'close' | 'shore' | 'beach' | 'first';
+
+/** Stance readout the camera reacts to (docs/MECHANICS.md §8). */
+export interface CameraStance {
+  rail: number;
+  compression: number;
+}
 
 /**
  * Third-person camera that lives shoreward of the rider, looks down the line, and frames the curl.
@@ -21,6 +27,14 @@ export class ChaseCamera {
   objectTarget: THREE.Vector3 | null = null;
   /** Fixed tripod position for the beach camera; set on the first update after a cut. */
   private anchor: THREE.Vector3 | null = null;
+  /** Stance the camera leans with; the scene refreshes it each frame. */
+  stance: CameraStance = { rail: 0, compression: 0 };
+  private fov = 0;
+
+  /** True while the rider's own head and torso should be hidden (they would fill the lens). */
+  get firstPerson(): boolean {
+    return this.mode === 'first';
+  }
 
   /** Hard cut to a camera mode (replays): no glide from the previous shot. */
   cut(mode: CameraMode): void {
@@ -46,14 +60,16 @@ export class ChaseCamera {
 
   private computeDesired(pose: RiderPose, dir: 1 | -1, state: RiderState, speed01: number, curlAheadBias: number): void {
     const C = this.tuning.camera;
-    let dist = C.chaseDistance;
-    let height = C.chaseHeight;
+    // default is the skate camera: low, close and just off the tail, so speed and rail angle read
+    let dist = C.skateDistance;
+    let height = C.skateHeight;
     if (this.mode === 'wide') {
       dist = C.wideDistance;
       height = C.wideHeight;
     } else if (this.mode === 'close') {
-      dist = C.chaseDistance * 0.5;
-      height = C.chaseHeight * 0.55;
+      // a character-inspection lens: close enough to read the face and the stance
+      dist = 2.6;
+      height = 1.0;
     } else if (this.mode === 'tube') {
       dist = C.tubeDistance;
       height = C.tubeHeight;
@@ -63,6 +79,21 @@ export class ChaseCamera {
       height *= 1.15;
     }
     const p = pose.pos;
+    if (this.mode === 'first') {
+      // Eye just behind and above the front foot, tilted down far enough that the front foot and the
+      // nose of the board sit in the bottom of the frame — without that anchor the rail angle is unreadable.
+      const f = pose.forward;
+      const up = pose.up;
+      this.desiredPos.set(p.x - f.x * C.fpBack + up.x * C.fpEyeHeight, p.y - f.y * C.fpBack + up.y * C.fpEyeHeight, p.z - f.z * C.fpBack + up.z * C.fpEyeHeight);
+      const down = Math.tan((C.fpLookDownDeg * Math.PI) / 180);
+      const reach = 8;
+      this.desiredLook.set(
+        this.desiredPos.x + f.x * reach - up.x * reach * down,
+        this.desiredPos.y + f.y * reach - up.y * reach * down,
+        this.desiredPos.z + f.z * reach - up.z * reach * down,
+      );
+      return;
+    }
     if (this.mode === 'beach') {
       // a photographer standing shoreward and down the line; the rider surfs toward and past the lens
       if (!this.anchor) this.anchor = new THREE.Vector3(p.x + dir * 26, Math.max(p.y, 0) + 5.5, p.z - 34);
@@ -83,15 +114,41 @@ export class ChaseCamera {
       return;
     }
     // sit behind (−dir·x) and shoreward (−z) of the rider, above the water
-    const back = 0.72;
-    const side = 0.62;
-    this.desiredPos.set(p.x - dir * dist * back, Math.max(p.y + height, 1.4), p.z - dist * side);
+    const skate = this.mode === 'chase';
+    const back = skate ? C.skateBack : 0.72;
+    const side = skate ? C.skateSide : 0.62;
+    // §8: the camera reads the stance — it swings wider on a committed rail and drops on compression
+    const swing = skate ? this.stance.rail * C.railSwing : 0;
+    const drop = skate ? Math.max(0, this.stance.compression) * C.compressionDrop : 0;
+    const dolly = skate ? 1 + C.speedDolly * 0.1 * speed01 : 1;
+    this.desiredPos.set(
+      p.x - dir * dist * back * dolly,
+      Math.max(p.y + height - drop, skate ? 0.9 : 1.4),
+      p.z - dist * side * dolly - swing,
+    );
     const lookAhead = C.lookAheadU * (0.55 + C.lookAheadSpeedScale * speed01 * 2);
-    this.desiredLook.set(p.x + dir * lookAhead + dir * curlAheadBias, p.y + 1.1, p.z + 1.5);
+    this.desiredLook.set(p.x + dir * lookAhead + dir * curlAheadBias, p.y + (skate ? 0.9 : 1.1), p.z + (skate ? 2.2 : 1.5));
+  }
+
+  /** Field of view for the current mode; first person opens up to sell the speed. */
+  private modeFov(): number {
+    const C = this.tuning.camera;
+    if (this.mode === 'first') return C.fpFov;
+    if (this.mode === 'chase') return C.skateFov;
+    return C.fov;
   }
 
   update(pose: RiderPose, dir: 1 | -1, state: RiderState, speed01: number, dt: number, curlAheadBias = 0): void {
     this.computeDesired(pose, dir, state, speed01, curlAheadBias);
+    // first person is rigidly attached: any smoothing at all shows up as the camera trailing metres
+    // behind a rider doing 11 m/s, which would put the lens outside the head
+    if (this.mode === 'first') {
+      this.pos.copy(this.desiredPos);
+      this.look.copy(this.desiredLook);
+      this.initialised = true;
+      this.apply();
+      return;
+    }
     if (!this.initialised) {
       this.pos.copy(this.desiredPos);
       this.look.copy(this.desiredLook);
@@ -105,6 +162,12 @@ export class ChaseCamera {
   }
 
   private apply(): void {
+    const want = this.modeFov();
+    if (want !== this.fov) {
+      this.fov = want;
+      this.camera.fov = want;
+      this.camera.updateProjectionMatrix();
+    }
     this.camera.position.copy(this.pos);
     this.tmp.copy(this.objectTarget ?? this.look);
     this.camera.lookAt(this.tmp);

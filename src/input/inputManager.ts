@@ -123,6 +123,30 @@ export class InputManager {
     }
     i.stickX = Math.max(-1, Math.min(1, x));
     i.stickY = Math.max(-1, Math.min(1, y));
+
+    // feet (docs/MECHANICS.md): left stick = back foot, right stick = front foot.
+    // A classic keymap leaves these at zero and the simulation derives them from the single stick.
+    let bx = 0;
+    let by = 0;
+    let fx = 0;
+    let fy = 0;
+    if (m.backUp) {
+      bx = (this.key(m.backRight!) ? 1 : 0) - (this.key(m.backLeft!) ? 1 : 0);
+      by = (this.key(m.backUp) ? 1 : 0) - (this.key(m.backDown!) ? 1 : 0);
+      fx = (this.key(m.frontRight!) ? 1 : 0) - (this.key(m.frontLeft!) ? 1 : 0);
+      fy = (this.key(m.frontUp!) ? 1 : 0) - (this.key(m.frontDown!) ? 1 : 0);
+    }
+    if (gp) {
+      const dead = (v: number) => (Math.abs(v) > this.deadzone ? Math.sign(v) * Math.min(1, (Math.abs(v) - this.deadzone) / (1 - this.deadzone)) : 0);
+      bx = bx || dead(gp.axes[0] ?? 0);
+      by = by || -dead(gp.axes[1] ?? 0);
+      fx = fx || dead(gp.axes[2] ?? 0);
+      fy = fy || -dead(gp.axes[3] ?? 0);
+    }
+    i.backX = bx;
+    i.backY = by;
+    i.frontX = fx;
+    i.frontY = fy;
     return i;
   }
 

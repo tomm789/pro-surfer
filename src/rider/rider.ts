@@ -9,8 +9,12 @@ import type { Tuning } from '@/core/tuning';
 import { Rng } from '@/core/rng';
 import { WaveModel, makeSurfaceSample, type SurfaceSample } from '@/wave/wave';
 import { facePoint } from '@/wave/profile';
-import { InputEdges, NEUTRAL_INPUT, type RiderInput } from './input';
+import { cloneInput, InputEdges, NEUTRAL_INPUT, type RiderInput } from './input';
 import { judgeLanding, type LandingJudgement } from './landing';
+import { StanceModel, stanceFromClassic, type StanceState } from './stance';
+
+/** Which control scheme drives the rider (docs/MECHANICS.md). */
+export type ControlScheme = 'classic' | 'dual';
 
 export type RiderState = 'prone' | 'face' | 'air' | 'tube' | 'floater' | 'wipeout';
 
@@ -21,7 +25,7 @@ export interface RiderStats {
   balance: number;
 }
 
-export type WipeoutReason = 'curl' | 'bogged' | 'over-the-back' | 'bad-landing' | 'caught-prone' | 'tube-balance' | 'closeout' | 'timeout' | 'exit' | 'hazard';
+export type WipeoutReason = 'curl' | 'bogged' | 'over-the-back' | 'bad-landing' | 'caught-prone' | 'tube-balance' | 'closeout' | 'timeout' | 'exit' | 'hazard' | 'slide';
 
 export interface RiderEvents extends Record<string, unknown> {
   stand: { u: number; v: number };
@@ -95,6 +99,12 @@ export class RiderSim {
   private prevStickY = 0;
   private prevStickDir = 0;
   private superStallUntil = -1;
+  /** Which scheme is driving: set by the scene from options / URL params. */
+  controls: ControlScheme = 'classic';
+  private stanceModel: StanceModel;
+  private classicFeet: RiderInput = cloneInput(NEUTRAL_INPUT);
+  /** Seconds the board has been sliding beyond grip (a soft failure that can be steered out of). */
+  slideSeconds = 0;
 
   constructor(
     readonly wave: WaveModel,
@@ -105,6 +115,7 @@ export class RiderSim {
     rng?: Rng,
   ) {
     this.stats = stats;
+    this.stanceModel = new StanceModel(tuning);
     this.rng = rng ?? new Rng(0x5eed);
     this.u = start?.u ?? wave.curlU + wave.params.breakSpeed * tuning.rider.respawnAheadSeconds;
     this.v = start?.v ?? tuning.rider.respawnV;
@@ -125,10 +136,30 @@ export class RiderSim {
     return this.wave.params.direction * input.stickX;
   }
 
+  /** The five stance quantities this frame (docs/MECHANICS.md §2). Read by the physics and the character. */
+  get stance(): Readonly<StanceState> {
+    return this.stanceModel.state;
+  }
+
+  get dual(): boolean {
+    return this.controls === 'dual';
+  }
+
+  /** In classic mode the single stick is expressed as feet so the character still reacts. */
+  private feet(input: Readonly<RiderInput>): Readonly<RiderInput> {
+    if (this.controls === 'dual') return input;
+    const f = this.classicFeet;
+    f.stickX = input.stickX;
+    f.stickY = input.stickY;
+    stanceFromClassic(f);
+    return f;
+  }
+
   step(dt: number, input: Readonly<RiderInput> = NEUTRAL_INPUT): void {
     this.edges.update(input);
     this.totalTime += dt;
     this.stateTime += dt;
+    this.stanceModel.update(dt, this.feet(input), this.wave.params.direction, Math.sin(this.heading));
     switch (this.state) {
       case 'prone':
         this.stepProne(dt, input);
@@ -152,8 +183,12 @@ export class RiderSim {
     this.prevStickY = input.stickY;
   }
 
-  /** Double-tap down = Super Stall (design doc §4.1). */
+  /** Double-tap down = Super Stall (design doc §4.1); dual just sits hard on the tail. */
   private detectSuperStall(input: Readonly<RiderInput>): void {
+    if (this.dual) {
+      if (this.stanceModel.state.trim < -0.75) this.superStallUntil = this.totalTime + 0.15;
+      return;
+    }
     if (input.stickY < -0.5 && this.prevStickY >= -0.5) {
       const window = this.tuning.input.doubleTapWindowMs / 1000;
       if (this.totalTime - this.lastDownTap < window) this.superStallUntil = this.totalTime + 0.6;
@@ -175,7 +210,9 @@ export class RiderSim {
     const R = this.tuning.rider;
     // the wave lifts you up the face as it approaches; paddling left/right shifts you along the line
     this.v = clamp(this.v + R.proneLiftRate * dt, 0, 1);
-    this.u += this.wave.params.direction * input.stickX * R.proneSpeed * dt;
+    // paddling: the sticks are arms; leaning them together pulls you along the line
+    const lateral = this.dual ? this.stanceModel.state.rail : this.toWall(input);
+    this.u += lateral * R.proneSpeed * dt;
     this.speed = R.proneSpeed;
     this.heading = 0;
     const behind = this.u - this.wave.curlU;
@@ -184,7 +221,9 @@ export class RiderSim {
       return;
     }
     const [lo, hi] = R.standWindowV;
-    if (this.edges.pressed('stand') || (this.v >= hi && input.stand)) {
+    // popping up is the same explosive extension as an ollie
+    const poppedUp = this.dual && this.stanceModel.state.pop > 0;
+    if (this.edges.pressed('stand') || poppedUp || (this.v >= hi && input.stand)) {
       if (this.v >= lo) this.stand();
     } else if (this.v >= 0.92) {
       // too late: over the falls
@@ -223,16 +262,39 @@ export class RiderSim {
   private stepFace(dt: number, input: Readonly<RiderInput>): void {
     const R = this.tuning.rider;
     const A = this.tuning.air;
+    const S = this.tuning.stance;
+    const st = this.stanceModel.state;
+    const dual = this.dual;
     const s = this.wave.sample(this.u, this.v, this.sample);
     const toWall = this.toWall(input);
     this.detectSuperStall(input);
 
-    // steering: the board wants to trim along the line; hold toward the wall to keep climbing
+    // steering: both feet leaning the same way engages the rail; a compressed rail carves harder
+    const turnIn = dual ? st.rail : toWall;
     let rate = R.turnRate;
     if (input.carve) rate = R.carveTurnRate;
     else if (input.grab) rate = R.grabTurnRate;
-    if (Math.abs(toWall) < 0.15) this.heading = damp(this.heading, 0, R.headingLevelRate, dt);
-    else this.heading = wrapAngle(this.heading + rate * toWall * dt);
+    if (dual) rate *= 1 + S.compressionTurnBonus * Math.max(0, st.compression) + S.railCarveBonus * Math.abs(st.rail) * Math.max(0, st.compression);
+    if (Math.abs(turnIn) < 0.15) this.heading = damp(this.heading, 0, R.headingLevelRate, dt);
+    else this.heading = wrapAngle(this.heading + rate * turnIn * dt);
+
+    // board yaw: feet twisting opposite ways pivot the board out from under the direction of travel
+    if (dual) {
+      this.boardYaw = clamp(this.boardYaw + S.twistTorque * st.twist * dt, -S.twistMaxRad, S.twistMaxRad);
+      const before = this.boardYaw;
+      this.boardYaw = damp(this.boardYaw, 0, S.twistRecover, dt);
+      // the rail biting again carries the pivot into the direction of travel: that is what a snap is
+      this.heading = wrapAngle(this.heading + (before - this.boardYaw) * S.twistSteer);
+      const slip = Math.max(0, Math.abs(this.boardYaw) - S.twistGrip);
+      if (slip > 0) {
+        this.speed = Math.max(0, this.speed - S.slideScrub * slip * dt);
+        this.slideSeconds += dt;
+        if (this.slideSeconds > S.slideFailSeconds * (0.7 + this.stats.balance * 0.6)) {
+          this.wipeout('slide');
+          return;
+        }
+      } else this.slideSeconds = Math.max(0, this.slideSeconds - dt * 2);
+    }
 
     // forces along the heading
     const sinH = Math.sin(this.heading);
@@ -240,24 +302,30 @@ export class RiderSim {
     const power = this.wavePower();
     let trim = this.trimTarget(power);
     let relax = this.speed < trim ? R.relaxBelowTrim : R.relaxAboveTrim;
-    const stalling = input.stickY < -0.3;
+    const stallAmount = dual ? clamp(-st.trim, 0, 1) : clamp(-input.stickY, 0, 1);
+    const stalling = dual ? st.trim < S.stallTrim : input.stickY < -0.3;
     if (stalling) {
-      // stalling drags the tail: the wave still carries you, but at a fraction of trim (super stall: less)
+      // weight on the tail drags it: the wave still carries you, but at a fraction of trim
       const frac = this.superStalling ? R.superStallSpeedFraction : R.stallSpeedFraction;
       trim = Math.min(trim, R.trimSpeed * frac);
-      relax = R.stallRelax * -input.stickY;
+      relax = R.stallRelax * stallAmount;
     }
     let a = gAlong + (trim - this.speed) * relax;
-    if (input.stickY > 0.3) {
+    if (dual) {
+      // §4: energy comes from pumping in phase with the face, plus a smaller continuous drive off the nose
+      a += R.pumpAccel * S.pumpAccelScale * st.pumpWork * power * power;
+      a += R.pumpAccel * S.trimDriveScale * Math.max(0, st.trim) * power * power;
+    } else if (input.stickY > 0.3) {
       const pumpEff = sinH < 0 ? 1 + R.pumpDescendBonus * -sinH : 1 - 0.7 * sinH;
       a += R.pumpAccel * input.stickY * pumpEff * power * power;
     }
-    if (input.carve && Math.abs(toWall) > 0.2) a += R.carveAccel * Math.abs(toWall);
+    if (input.carve && Math.abs(turnIn) > 0.2) a += R.carveAccel * Math.abs(turnIn);
     const maxSpeed = R.maxSpeed * (1 + this.stats.speed * 0.2);
     this.speed = clamp(this.speed + a * dt, 0, maxSpeed);
 
-    // jump loading (hold) — pressing Up cancels the load (design doc §4.1)
-    if (input.jump) {
+    // jump loading: dual reads the crouch itself; classic holds the button (design doc §4.1)
+    if (dual) this.jumpLoad = st.load;
+    else if (input.jump) {
       if (input.stickY > 0.5) this.jumpLoad = 0;
       else this.jumpLoad = clamp(this.jumpLoad + dt / A.loadMaxSeconds, 0, 1);
     }
@@ -283,16 +351,19 @@ export class RiderSim {
 
     // lip boundary: launch, floater, or fall over the back
     const releasedJump = this.edges.released('jump');
-    const wantsLaunch = (releasedJump || (this.v >= 1 && input.jump)) && this.v >= A.launchMinV && sinH >= A.launchMinHeading;
+    // dual: an explosive extension out of a crouch is the pop — the surfing equivalent of an ollie
+    const popped = dual && st.pop > 0;
+    const wantsLaunch = (releasedJump || popped || (this.v >= 1 && input.jump)) && this.v >= A.launchMinV && sinH >= A.launchMinHeading;
     if (wantsLaunch) {
-      const power = Math.max(this.jumpLoad, A.loadMinFraction);
+      const power = Math.max(popped ? st.pop : this.jumpLoad, A.loadMinFraction);
       this.jumpLoad = 0;
       this.launch(power);
       return;
     }
     if (releasedJump) this.jumpLoad = 0;
     const F = this.tuning.floater;
-    if (input.slide && this.v >= F.entryMinV && sinH > -0.1) {
+    const unweighted = dual && st.compression < -0.4;
+    if ((input.slide || unweighted) && this.v >= F.entryMinV && sinH > -0.1) {
       this.startFloater();
       return;
     }
@@ -313,7 +384,7 @@ export class RiderSim {
     const ahead = this.u - this.wave.curlU;
     const tubeLen = this.wave.tubeLength(T.lengthFactor);
     if (fields.tube > 0.35 && ahead >= T.minOffsetU && ahead <= tubeLen && this.v < 0.55) {
-      const stalling = input.stickY < -0.5 || this.superStalling;
+      const stalling = (dual ? st.trim < -0.45 : input.stickY < -0.5) || this.superStalling;
       if ((stalling && this.speed <= T.entrySpeedMax) || this.speed <= T.entrySpeedMax * 0.75) {
         this.enterTube(!stalling);
         return;
@@ -358,8 +429,10 @@ export class RiderSim {
     const len = this.wave.tubeLength(T.lengthFactor);
     t.seconds += dt;
     // depth control: stall = deeper (the curl gains on you), up/jump = speed out; the barrel pulls you back a little
+    const st = this.stanceModel.state;
     let rel = -0.25;
-    if (input.stickY < -0.3) rel -= T.depthRate * -input.stickY;
+    if (this.dual) rel += T.depthRate * st.trim;
+    else if (input.stickY < -0.3) rel -= T.depthRate * -input.stickY;
     else if (input.stickY > 0.3) rel += T.depthRate * input.stickY;
     if (input.jump) rel += T.escapeAccel;
     // quick cuts reposition instantly
@@ -388,7 +461,9 @@ export class RiderSim {
     let drift = (T.balanceDriftBase + T.balanceDriftDepthScale * t.depth) * (1 + t.seconds * T.balanceDriftTimeScale) * (1 - this.stats.balance * T.balanceStatScale);
     if (input.grab) drift *= T.railGrabDriftFactor;
     t.balance += t.driftDir * drift * dt;
-    const stickDir = input.stickX > 0.5 ? 1 : input.stickX < -0.5 ? -1 : 0;
+    // balance is corrected in screen space, with the rail rather than a single stick when dual
+    const railRaw = this.dual ? (input.backX + input.frontX) / 2 : input.stickX;
+    const stickDir = railRaw > 0.5 ? 1 : railRaw < -0.5 ? -1 : 0;
     if (stickDir !== 0 && stickDir !== this.prevStickDir) t.balance -= stickDir * T.balanceTapImpulse;
     if (stickDir !== 0) t.balance -= stickDir * T.balanceHoldRate * dt;
     this.prevStickDir = stickDir;
@@ -402,8 +477,10 @@ export class RiderSim {
       this.wipeout('curl');
       return;
     }
+    // crouching makes you smaller: a tight barrel that would clip you standing tall lets you through
+    const crouch = this.dual ? Math.max(0, st.compression) : 0;
     const roof = this.wave.fields(this.u).tube;
-    if (t.offset >= len || roof < 0.12) this.exitTube();
+    if (t.offset >= len || roof < 0.12 - 0.05 * crouch) this.exitTube();
     if (this.speed < R.minStandSpeed * 0.5 && this.state === 'tube') this.wipeout('bogged');
   }
 
@@ -485,13 +562,16 @@ export class RiderSim {
     this.airPos.x += this.airVel.x * dt;
     this.airPos.y += this.airVel.y * dt;
     this.airPos.z += this.airVel.z * dt;
-    // spin
+    // spin: feet twisting opposite ways rotate the board; tucking (crouching) spins faster
+    const S = this.tuning.stance;
+    const st = this.stanceModel.state;
     const spinRate = A.spinRateBase + this.stats.spin * A.spinRateStatScale;
     let spinIn = 0;
     if (input.spinLeft) spinIn -= 1;
     if (input.spinRight) spinIn += 1;
-    if (spinIn === 0) spinIn = input.stickX;
-    this.airYaw += spinRate * spinIn * dt;
+    if (spinIn === 0) spinIn = this.dual ? clamp(st.twist * S.airTwistScale, -1, 1) : input.stickX;
+    const tuck = this.dual ? 1 + S.tuckSpinBonus * Math.max(0, st.compression) : 1;
+    this.airYaw += spinRate * tuck * spinIn * dt;
     // track wave-space u so the wave/camera know where we are
     this.u = this.wave.params.direction * this.airPos.x;
     const dTarget = -this.airPos.z;
@@ -536,7 +616,9 @@ export class RiderSim {
     // The board pitches with the arc, so with no spin it comes down at the mirror angle by itself;
     // what gets judged is the spin residual: multiples of 180° (fakie included) are Perfect.
     const boardYaw = wrapAngle(-this.launchHeading + this.airYaw);
-    const j = judgeLanding(this.launchHeading, boardYaw, A.perfectWindowDeg, A.sloppyWindowDeg, this.airYaw);
+    // landing with the legs loaded absorbs it; landing locked out does not
+    const absorb = this.dual ? 1 + this.tuning.stance.landAbsorb * Math.max(0, this.stanceModel.state.compression) : 1;
+    const j = judgeLanding(this.launchHeading, boardYaw, A.perfectWindowDeg * absorb, A.sloppyWindowDeg * absorb, this.airYaw);
     this.lastLanding = j;
     const airTime = this.airTime;
     if (j.rating === 'wipeout') {
@@ -674,6 +756,16 @@ export class RiderSim {
       headingDeg: +this.headingDeg.toFixed(1),
       ahead: +this.aheadOfCurl.toFixed(2),
       jumpLoad: +this.jumpLoad.toFixed(2),
+      boardYawDeg: +((this.boardYaw * 180) / Math.PI).toFixed(0),
+      stance: this.dual
+        ? {
+            compression: +this.stance.compression.toFixed(2),
+            trim: +this.stance.trim.toFixed(2),
+            rail: +this.stance.rail.toFixed(2),
+            twist: +this.stance.twist.toFixed(2),
+            pump: +this.stance.pumpWork.toFixed(2),
+          }
+        : null,
       airTime: +this.airTime.toFixed(2),
       airYawDeg: +((this.airYaw * 180) / Math.PI).toFixed(0),
       lastLanding: this.lastLanding?.rating ?? null,

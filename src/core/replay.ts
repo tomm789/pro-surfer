@@ -28,7 +28,26 @@ export interface Recording {
   highlight: Highlight | null;
 }
 
-const KEYS: (keyof RiderInput)[] = ['stickX', 'stickY', 'jump', 'carve', 'grab', 'slide', 'spinLeft', 'spinRight', 'cashIn', 'stand', 'duckDive', 'cameraToggle', 'objectCam', 'pause'];
+const KEYS: (keyof RiderInput)[] = [
+  'stickX',
+  'stickY',
+  'backX',
+  'backY',
+  'frontX',
+  'frontY',
+  'jump',
+  'carve',
+  'grab',
+  'slide',
+  'spinLeft',
+  'spinRight',
+  'cashIn',
+  'stand',
+  'duckDive',
+  'cameraToggle',
+  'objectCam',
+  'pause',
+];
 
 function sameInput(a: Readonly<RiderInput>, b: Readonly<RiderInput>): boolean {
   for (const k of KEYS) if (a[k] !== b[k]) return false;
