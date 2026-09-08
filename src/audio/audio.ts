@@ -37,6 +37,8 @@ export class AudioManager {
   private whiteGain!: GainNode;
   private whiteFilter!: BiquadFilterNode;
   private sprayGain!: GainNode;
+  private railGain!: GainNode;
+  private railFilter!: BiquadFilterNode;
   music: Music | null = null;
   muted = false;
   private started = false;
@@ -106,6 +108,19 @@ export class AudioManager {
     spray.connect(hp).connect(this.sprayGain).connect(this.amb);
     spray.start();
 
+    // rail bite: a lower, throatier hiss that rises with how much rail is buried (docs/MECHANICS.md §7)
+    const rail = ctx.createBufferSource();
+    rail.buffer = makeNoiseBuffer(ctx, 2, 'pink');
+    rail.loop = true;
+    this.railFilter = ctx.createBiquadFilter();
+    this.railFilter.type = 'bandpass';
+    this.railFilter.frequency.value = 1400;
+    this.railFilter.Q.value = 1.1;
+    this.railGain = ctx.createGain();
+    this.railGain.gain.value = 0;
+    rail.connect(this.railFilter).connect(this.railGain).connect(this.amb);
+    rail.start();
+
     this.music = new Music(ctx, this.master, this.volume.music);
     if (ctx.state === 'suspended') void ctx.resume();
   }
@@ -119,14 +134,44 @@ export class AudioManager {
     if (this.master && this.ctx) this.master.gain.setTargetAtTime(m ? 0 : this.volume.master, this.ctx.currentTime, 0.05);
   }
 
-  /** Per-frame ambience control. whitewater 0..1, spray 0..1, insideTube 0..1 (muffles). */
-  ambience(whitewater: number, spray: number, insideTube: number): void {
+  /**
+   * Per-frame ambience control. whitewater 0..1, spray 0..1, insideTube 0..1 (muffles),
+   * railBite 0..1 (how much rail is buried: the carve hiss), speed01 lifts the pitch of the hiss.
+   */
+  ambience(whitewater: number, spray: number, insideTube: number, railBite = 0, speed01 = 0): void {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     this.whiteGain.gain.setTargetAtTime(Math.min(1, whitewater) * 0.55, t, 0.15);
     this.whiteFilter.frequency.setTargetAtTime(900 - insideTube * 500, t, 0.2);
     this.sprayGain.gain.setTargetAtTime(Math.min(1, spray) * 0.18, t, 0.08);
     this.oceanGain.gain.setTargetAtTime(0.5 + insideTube * 0.5, t, 0.2);
+    this.railGain.gain.setTargetAtTime(Math.min(1, railBite) * 0.34 * (0.5 + 0.5 * speed01), t, 0.06);
+    this.railFilter.frequency.setTargetAtTime(1000 + speed01 * 900 + railBite * 400, t, 0.1);
+  }
+
+  /** The pop: a loaded crouch released at the lip. A thump under a short slap of spray. */
+  pop(power = 1): void {
+    this.tone(90 + power * 40, 0.16, 'sine', 0.3 * power, 45);
+    this.burst(0.18, 0.35 * power, 2600, 0.6);
+  }
+
+  /** A turn the recogniser named; worth scales the flourish so a roundhouse sounds bigger than a carve. */
+  turnNamed(worth: number): void {
+    const base = 440 + Math.min(2, worth) * 120;
+    this.tone(base, 0.07, 'triangle', 0.1, base * 1.25);
+    if (worth >= 1.3) setTimeout(() => this.tone(base * 1.5, 0.12, 'triangle', 0.12, base * 2), 70);
+  }
+
+  /** The tail breaking loose: a scrub of noise, longer the further it slides. */
+  slide(amount = 1): void {
+    this.burst(0.2 + amount * 0.25, 0.28, 1700, 0.5);
+  }
+
+  /** A zone callout on the pool: two soft notes, rising for a barrel section, falling for a ramp. */
+  zone(kind: 'barrel' | 'ramp'): void {
+    const [a, b] = kind === 'barrel' ? [523, 784] : [659, 523];
+    this.tone(a, 0.1, 'sine', 0.14);
+    setTimeout(() => this.tone(b, 0.16, 'sine', 0.14), 110);
   }
 
   private tone(freq: number, seconds: number, type: OscillatorType, gain = 0.25, slideTo?: number): void {

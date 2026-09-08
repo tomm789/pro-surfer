@@ -32,6 +32,8 @@ export interface HudState {
   photo: { phase: 'idle' | 'countdown' | 'flash'; beep: number; beeps: number; value: number } | null;
   /** Dual-stick only: where the feet are and what the board is doing about it. Null hides the widget. */
   stance: { backX: number; backY: number; frontX: number; frontY: number; rail: number; compression: number; load: number } | null;
+  /** Zoned venues (the pool): bands in metres relative to the rider for the wave meter, and what is next. */
+  zones: { bands: { name: 'barrel' | 'wall' | 'ramp'; from: number; to: number }[]; current: 'barrel' | 'wall' | 'ramp'; next: { name: 'barrel' | 'ramp'; metres: number } | null } | null;
 }
 
 /** How many links of an open chain the HUD shows; the rest are summarised as a count. */
@@ -77,6 +79,14 @@ const CSS = `
 .hud .wm .rider{position:absolute;top:22px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:10px solid #ff7a3d;transform:translateX(-6px)}
 .hud .wm .sec{position:absolute;top:24px;width:10px;height:14px;border-radius:3px;background:#f4fbff;transform:translateX(-5px);opacity:.9}
 .hud .wm .sec.warn{background:#ffb84d;animation:hudflash .3s steps(2,end) infinite}
+.hud .wm .zone{position:absolute;top:24px;height:14px;border-radius:3px;opacity:.55}
+.hud .wm .zone.barrel{background:#2fd3c8}
+.hud .wm .zone.ramp{background:#ff9a3d}
+.hud .wm .zone.wall{display:none}
+.hud .zonecall{position:absolute;left:50%;top:27%;transform:translateX(-50%);font-size:20px;font-weight:900;letter-spacing:4px;color:#7ff2e6;text-shadow:0 2px 4px rgba(0,0,0,.6);opacity:0;transition:opacity .2s}
+.hud .zonecall.show{opacity:1}
+.hud .zonecall.ramp{color:#ffb56b}
+.hud .zonecall.in{font-size:14px;letter-spacing:3px;opacity:.7;top:29%}
 .hud .wm .h{position:absolute;left:8px;top:4px;font-size:13px;font-weight:800;letter-spacing:1px}
 .hud .wm .next{position:absolute;right:8px;top:4px;font-size:12px;font-weight:700;color:#bfe9ff}
 .hud .warn{margin-top:6px;text-align:center;font-size:14px;font-weight:900;letter-spacing:2px;color:#ffb84d;height:18px}
@@ -146,6 +156,8 @@ export class Hud {
   private balDepth: HTMLDivElement;
   private hint: HTMLDivElement;
   private stance: HTMLDivElement;
+  private wmZones: HTMLDivElement[] = [];
+  private zoneCall: HTMLDivElement;
   private backDot: HTMLElement;
   private frontDot: HTMLElement;
   private railFill: HTMLElement;
@@ -184,7 +196,9 @@ export class Hud {
     this.bank = el(this.root, 'bank', '');
     const lr = el(this.root, 'lr');
     this.wm = el(lr, 'wm');
+    for (let i = 0; i < 4; i++) this.wmZones.push(el(this.wm, 'zone'));
     el(this.wm, 'line');
+    this.zoneCall = el(this.root, 'zonecall', '');
     this.wmH = el(this.wm, 'h', '8 FT');
     this.wmNext = el(this.wm, 'next', '');
     this.wmRider = el(this.wm, 'rider');
@@ -322,6 +336,32 @@ export class Hud {
       }
     }
     this.warn.textContent = s.warning ? 'WATCH THAT BREAK' : '';
+    // zone bands on the meter, and a callout as the next barrel or ramp section approaches
+    const bands = s.zones?.bands ?? [];
+    for (let i = 0; i < this.wmZones.length; i++) {
+      const b = bands[i];
+      const d = this.wmZones[i]!;
+      if (!b || b.name === 'wall') {
+        d.style.display = 'none';
+        continue;
+      }
+      const x0 = Math.max(8, toX(Math.max(b.from, -20)));
+      const x1 = Math.min(w - 8, toX(Math.min(b.to, 60)));
+      d.style.display = x1 > x0 ? 'block' : 'none';
+      d.style.left = `${x0}px`;
+      d.style.width = `${x1 - x0}px`;
+      d.className = `zone ${b.name}`;
+    }
+    const next = s.zones?.next ?? null;
+    const cur = s.zones?.current ?? 'wall';
+    if (next && next.metres < 30 && next.metres > 2) {
+      this.zoneCall.textContent = `${next.name === 'barrel' ? 'BARREL SECTION' : 'RAMP'} · ${next.metres.toFixed(0)} m`;
+      this.zoneCall.className = `zonecall show ${next.name}`;
+    } else if (cur !== 'wall') {
+      // inside the section: a steady label so the player knows what the wave is offering here
+      this.zoneCall.textContent = cur === 'barrel' ? 'BARREL SECTION' : 'RAMP';
+      this.zoneCall.className = `zonecall show in ${cur}`;
+    } else this.zoneCall.className = 'zonecall';
     this.hazard.textContent = s.hazard ? '!' : '';
     if (s.balance !== null) {
       this.bal.className = 'bal show';

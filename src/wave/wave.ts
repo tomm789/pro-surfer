@@ -177,6 +177,25 @@ export class WaveModel {
     return { hollow: 1 + z.hollowAmp * Math.sin(t), height: 1 + z.heightAmp * Math.sin(t * 0.5 + 0.7) };
   }
 
+  /**
+   * Runs of zones between u0 and u1, merged, for the wave meter. Empty where there are no zones.
+   * Sampled rather than solved analytically so the thresholds stay in one place (`zoneAt`).
+   */
+  zoneBands(u0: number, u1: number, step = 2): { name: ZoneName; u0: number; u1: number }[] {
+    if (!this.params.zones) return [];
+    const out: { name: ZoneName; u0: number; u1: number }[] = [];
+    let cur: { name: ZoneName; u0: number; u1: number } | null = null;
+    for (let u = u0; u <= u1; u += step) {
+      const name = this.zoneAt(u);
+      if (cur && cur.name === name) cur.u1 = u;
+      else {
+        cur = { name, u0: u, u1: u };
+        out.push(cur);
+      }
+    }
+    return out;
+  }
+
   /** Which part of a zoned venue u falls in; always 'wall' where there are no zones. */
   zoneAt(u: number): ZoneName {
     const z = this.params.zones;

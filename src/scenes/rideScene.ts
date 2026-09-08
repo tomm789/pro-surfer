@@ -113,6 +113,8 @@ export class RideScene implements GameScene {
   private frame = 0;
   private director: ReplayDirector | null = null;
   private recognizer: TrickRecognizer | null = null;
+  private wasSliding = false;
+  private lastZoneCallU: number | null = null;
   private paramsString = '';
   private seed = 1;
   private replayChrome: HTMLElement[] = [];
@@ -324,6 +326,7 @@ export class RideScene implements GameScene {
       iconHint: '',
       photo: null,
       stance: null,
+      zones: null,
     };
     this.wireEvents();
   }
@@ -454,7 +457,11 @@ export class RideScene implements GameScene {
     });
     // sounds
     const a = () => this.audio;
-    this.events.on('launch', () => a()?.launch());
+    this.events.on('launch', (e) => {
+      a()?.launch();
+      // the pop is a body movement the player made; give it a thump the button jump never had
+      if (this.rider.dual) a()?.pop(e.power);
+    });
     this.events.on('land', (e) => {
       a()?.land();
       if (e.rating === 'perfect') a()?.perfect();
@@ -467,7 +474,16 @@ export class RideScene implements GameScene {
     this.events.on('tubeExit', (e) => {
       if (e.spit) a()?.spit();
     });
-    this.trickEvents.on('trickLand', (e) => (e.trick.special ? a()?.special() : a()?.trick()));
+    this.trickEvents.on('trickLand', (e) => {
+      const worth = TUNING.recognizer.worth[e.trick.id];
+      // a recognised turn (docs/MECHANICS.md §3) has a worth; catalogue tricks keep their old cues
+      if (this.rider.dual && e.section === 'face' && worth !== undefined) a()?.turnNamed(worth);
+      else if (e.trick.special) a()?.special();
+      else a()?.trick();
+    });
+    this.events.on('wipeout', (e) => {
+      if (e.reason === 'slide') a()?.slide(1);
+    });
     this.run.events.on('chainBanked', (b) => a()?.bank(b.total));
     this.run.events.on('meterYellow', () => a()?.meterFull());
     let warned = 0;
@@ -613,7 +629,23 @@ export class RideScene implements GameScene {
       const nearCurl = Math.max(0, 1 - Math.max(0, r.aheadOfCurl) / 12);
       const ww = r.state === 'wipeout' ? 1 : r.state === 'floater' ? 0.8 : 0.35 + nearCurl * 0.5;
       const spray = r.state === 'face' ? Math.min(1, r.speed / 14) * (0.4 + Math.abs(Math.sin(r.heading)) * 0.8) : r.state === 'tube' ? 0.5 : 0;
-      this.audio.ambience(ww, spray, r.state === 'tube' ? 1 : 0);
+      // rail bite: how much rail is buried, louder when the rider is also pressing down into it
+      const onFace = r.state === 'face' || r.state === 'tube';
+      const bite = onFace && r.dual ? Math.abs(r.stance.rail) * (0.55 + 0.45 * Math.max(0, r.stance.compression)) : 0;
+      this.audio.ambience(ww, spray, r.state === 'tube' ? 1 : 0, bite, Math.min(1, r.speed / TUNING.rider.maxSpeed));
+      // the tail breaking loose scrubs once as it starts, not every frame it is out
+      const sliding = r.slideSeconds > 0.05;
+      if (sliding && !this.wasSliding) this.audio.slide(0.6);
+      this.wasSliding = sliding;
+      // zone callout once as the next section comes into range (30 m: about three seconds at pool speed)
+      const next = this.hudState.zones?.next ?? null;
+      if (next && next.metres < 30 && next.metres > 2 && (next.name === 'barrel' || next.name === 'ramp')) {
+        const startU = r.u + next.metres;
+        if (this.lastZoneCallU === null || Math.abs(startU - this.lastZoneCallU) > 5) {
+          this.audio.zone(next.name);
+          this.lastZoneCallU = startU;
+        }
+      }
     }
     this.rider.pose(this.pose);
     const speed01 = Math.min(1, this.rider.speed / TUNING.rider.maxSpeed);
@@ -715,6 +747,15 @@ export class RideScene implements GameScene {
     s.iconHint = bottom && showHints ? { air: 'air: grab or flip in the air', face: 'face: e.g. double-tap carve', tube: 'tube: slide + direction in the barrel', special: 'special: needs the flashing meter' }[bottom] : '';
     s.photo = this.photo ? { phase: this.photo.phase, beep: this.photo.beep, beeps: TUNING.photo.beeps, value: this.photo.lastValue } : null;
     s.sectionsAhead = this.wave.sections.map((sec) => sec.u - r.u).sort((a, b) => a - b).slice(0, 4);
+    if (this.wave.params.zones) {
+      const bands = this.wave.zoneBands(r.u - 20, r.u + 60).map((b) => ({ name: b.name, from: b.u0 - r.u, to: b.u1 - r.u }));
+      const ahead = bands.find((b) => b.name !== 'wall' && b.from > 1);
+      s.zones = {
+        bands,
+        current: this.wave.zoneAt(r.u),
+        next: ahead && ahead.name !== 'wall' ? { name: ahead.name, metres: ahead.from } : null,
+      };
+    } else s.zones = null;
     s.warning = this.wave.warnings().some((w) => w.u > r.u && w.u - r.u < 45);
     // stance readout: only useful for the scheme it describes, and only while actually surfing
     const feet = this.currentInput();
