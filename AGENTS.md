@@ -6,10 +6,11 @@ LINE-UP is an original surf trick game in the spirit of the early-2000s console 
 
 ## Read these first
 
-1. `docs/DESIGN.md` — the spec. Sections 3–6 define the wave, rider states, tricks and scoring. Implement them as written; do not invent different rules.
-2. `docs/DECISIONS.md` — engine and architecture decisions and why.
-3. `docs/PLAN.md` — milestone status and the §14 feel-checklist numbers.
-4. `docs/BACKLOG.md` — prioritised open work. Pick from the top unless told otherwise.
+1. `docs/MECHANICS.md` — **the control-to-body source of truth.** Each stick is a foot; the board obeys the difference between them. It owns how the rider is controlled and how the board behaves, and it beats the design doc on those points.
+2. `docs/DESIGN.md` — the spec for everything else. Sections 3–6 define the wave, rider states, tricks and scoring. Implement them as written; do not invent different rules.
+3. `docs/DECISIONS.md` — engine and architecture decisions and why.
+4. `docs/PLAN.md` — milestone status and the §14 feel-checklist numbers.
+5. `docs/BACKLOG.md` — prioritised open work. Pick from the top unless told otherwise.
 
 ## Hard rules
 
@@ -27,8 +28,8 @@ LINE-UP is an original surf trick game in the spirit of the early-2000s console 
 |---|---|
 | `src/core` | fixed-step loop, seeded RNG, event bus, tuning schema, replay recorder |
 | `src/wave` | parametric peeling wave, curl, sections and close-outs, tube window |
-| `src/rider` | rider state machine (prone, face, air, tube, floater, wipeout), launch and landing judge |
-| `src/tricks` | trick catalogue loader, input sequencer (600 ms buffer, 8-way quantisation), executor |
+| `src/rider` | rider state machine (prone, face, air, tube, floater, wipeout), the stance model (`stance.ts`), launch and landing judge |
+| `src/tricks` | trick catalogue loader, input sequencer (600 ms buffer, 8-way quantisation), executor, and the emergent turn recogniser (`recognizer.ts`) |
 | `src/scoring` | special meter, chain tracker and multipliers, run controller and clock |
 | `src/goals` | goal types, level and lesson loading, icon stack, photo director, contests |
 | `src/world` | beach definitions, hazards and wave objects, rider and board roster |
@@ -69,9 +70,11 @@ You cannot play the game, so verify like this:
 
 The app exposes `window.__lineup` in headless mode (`?headless=1`): `stepTo(seconds)`, `step(n)`, `render()`, `state()` (scene debug state including the ride event log), `setInput(partialInput | { script: [{ t, input }] })`. The tools wrap this; `--script` feeds time-keyed inputs, e.g. `--script '[{"t":1,"input":{"stand":true}},{"t":2,"input":{"stickY":1}}]'`.
 
-Useful URL parameters (also accepted as `--flag value` by the tools): `scene=game|ride|wave`, `flow=menu|ride|push|head`, `level=<id>`, `beach=<id>`, `ft=<n>`, `seed=<n>`, `auto=1` (stand automatically), `free=1`, `seconds=<n>`, `cam=chase|wide|close|shore`, `assist=balance`, `debug=1` (on-screen state), `rider=<id>`, `board=<id>`, `alltricks=1`, `objects=0`, `autoreplay=1`, `cheat=riders|boards`.
+Useful URL parameters (also accepted as `--flag value` by the tools): `scene=game|ride|wave`, `flow=menu|ride|push|head`, `level=<id>`, `beach=<id>`, `ft=<n>`, `seed=<n>`, `auto=1` (stand automatically), `free=1`, `seconds=<n>`, `cam=chase|first|wide|close|shore|beach`, `controls=dual|classic`, `assist=balance`, `debug=1` (on-screen state), `rider=<id>`, `board=<id>`, `alltricks=1`, `objects=0`, `autoreplay=1`, `cheat=riders|boards`.
 
-Rider input fields: `stickX`, `stickY` (−1..1), `jump`, `carve`, `grab`, `slide`, `spinLeft`, `spinRight`, `cashIn`, `stand`, `duckDive`, `cameraToggle`, `objectCam`, `pause`.
+Rider input fields: `backX`, `backY`, `frontX`, `frontY` (the two feet, −1..1, stick up positive), `stickX`, `stickY` (classic single stick, and menu navigation), `jump`, `carve`, `grab`, `slide`, `spinLeft`, `spinRight`, `cashIn`, `stand`, `duckDive`, `cameraToggle`, `objectCam`, `pause`.
+
+Note when scripting headless input: `auto=1` only presses stand. A rider with all four foot axes at zero still trims down the line, which is fine for screenshots but means a fixed script is a poor test of the control scheme — pumping and turning are closed-loop (see `tests/stance.test.ts` for how to drive them properly).
 
 ### Gotchas
 
