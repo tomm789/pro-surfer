@@ -3,7 +3,7 @@
   "name": "Long Pool",
   "region": "Inland Basin",
   "breakDirection": "right",
-  "hollowness": 0.62,
+  "hollowness": 0.66,
   "breakSpeed": 7.0,
   "faceAspect": 1.15,
   "tube": true,
@@ -22,5 +22,10 @@
     "landmarks": [
       "pool"
     ]
+  },
+  "zones": {
+    "wavelength": 140,
+    "hollowAmp": 0.45,
+    "heightAmp": 0.12
   }
 }

@@ -22,6 +22,18 @@ export const BeachSchema = z.object({
     /** Curl approaches from both sides (sections spawn ahead and behind the rider). */
     doubleUp: z.boolean(),
   }),
+  /**
+   * Fixed zones along the venue (the pool): hollowness and height vary with position so a lap has a
+   * barrel section, a wall and a ramp. Omit for ocean breaks, which vary through scheduled sections.
+   */
+  zones: z
+    .object({
+      /** Metres for one full barrel → wall → ramp → wall cycle. */
+      wavelength: z.number().positive(),
+      hollowAmp: z.number().min(0).max(1),
+      heightAmp: z.number().min(0).max(1),
+    })
+    .optional(),
   /** Available hazards / objects (ids from data/objects). */
   hazards: z.array(z.string()),
   /** Look & feel (sky, water tint, landmarks) — presentation only. */

@@ -40,7 +40,16 @@ export interface WaveParams {
   warnSeconds: number;
   sectionAheadMin: number;
   sectionAheadMax: number;
+  /**
+   * Fixed zones along the pool: hollowness and height vary with position so a lap has a barrel
+   * section, a wall and a ramp instead of one uniform tube. Absent for ocean breaks, which get
+   * their variety from scheduled sections instead.
+   */
+  zones?: { wavelength: number; hollowAmp: number; heightAmp: number };
 }
+
+/** What the wave is doing at this point along a zoned venue. */
+export type ZoneName = 'barrel' | 'wall' | 'ramp';
 
 export interface WaveFields {
   H: number;
@@ -148,14 +157,34 @@ export class WaveModel {
     }
     // gentle height variation along the line so the wall isn't a ruler
     const wobble = 1 + 0.05 * Math.sin(u * 0.11) + 0.03 * Math.sin(u * 0.37 + 1.3);
-    o.H = P.height * wobble * (1 + jack);
-    o.hollow = clamp(hollow * P.hollowness, 0, 1) * (P.tube ? 1 : 0.55);
+    const z = this.zoneShape(u);
+    o.H = P.height * wobble * z.height * (1 + jack);
+    const hollowness = clamp(P.hollowness * z.hollow, 0, 1);
+    o.hollow = clamp(hollow * hollowness, 0, 1) * (P.tube ? 1 : 0.55);
     o.broken = clamp(broken, 0, 1);
-    const phiBreak = lerp(PHI_CRUMBLE, PHI_BARREL, P.hollowness);
+    const phiBreak = lerp(PHI_CRUMBLE, PHI_BARREL, hollowness);
     o.phi = lerp(PHI_FACE_MIN, phiBreak, hollow);
     const roof = o.phi > Math.PI * 1.25 ? clamp((o.phi - Math.PI * 1.25) / (PHI_BARREL - Math.PI * 1.25), 0, 1) : 0;
     o.tube = P.tube ? roof * (1 - o.broken) : 0;
     return o;
+  }
+
+  /** Zone modulation at u: 1,1 for a venue without zones. */
+  private zoneShape(u: number): { hollow: number; height: number } {
+    const z = this.params.zones;
+    if (!z) return { hollow: 1, height: 1 };
+    const t = (u / z.wavelength) * Math.PI * 2;
+    return { hollow: 1 + z.hollowAmp * Math.sin(t), height: 1 + z.heightAmp * Math.sin(t * 0.5 + 0.7) };
+  }
+
+  /** Which part of a zoned venue u falls in; always 'wall' where there are no zones. */
+  zoneAt(u: number): ZoneName {
+    const z = this.params.zones;
+    if (!z) return 'wall';
+    const s = Math.sin((u / z.wavelength) * Math.PI * 2);
+    if (s > 0.45) return 'barrel';
+    if (s < -0.45) return 'ramp';
+    return 'wall';
   }
 
   /** Full cross-section profile at u (after the whitewater morph). */
@@ -271,7 +300,15 @@ export function makeSurfaceSample(): SurfaceSample {
 }
 
 export function waveParamsFromBeach(
-  beach: { hollowness: number; breakSpeed: number; breakDirection: 'left' | 'right'; faceAspect: number; tube: boolean; sections: SectionProfile },
+  beach: {
+    hollowness: number;
+    breakSpeed: number;
+    breakDirection: 'left' | 'right';
+    faceAspect: number;
+    tube: boolean;
+    sections: SectionProfile;
+    zones?: { wavelength: number; hollowAmp: number; heightAmp: number };
+  },
   heightMetres: number,
   tuning: { throwLength?: number; collapseLength?: number; warnSeconds: number },
 ): WaveParams {
@@ -283,6 +320,7 @@ export function waveParamsFromBeach(
     faceAspect: beach.faceAspect,
     tube: beach.tube,
     sections: { ...beach.sections },
+    ...(beach.zones ? { zones: { ...beach.zones } } : {}),
     throwLength: tuning.throwLength ?? Math.max(7, heightMetres * 3.6),
     collapseLength: tuning.collapseLength ?? Math.max(5, heightMetres * 2.5),
     warnSeconds: tuning.warnSeconds,

@@ -280,9 +280,11 @@ export class RiderSim {
     if (input.carve) rate = R.carveTurnRate;
     else if (input.grab) rate = R.grabTurnRate;
     if (dual) rate *= 1 + S.compressionTurnBonus * Math.max(0, st.compression) + S.railCarveBonus * Math.abs(st.rail) * Math.max(0, st.compression);
-    // auto-trim: with the sticks at rest the board finds a line again. Pro mode leaves it where you put it.
+    // Auto-trim: with the sticks *at rest* the board finds a line again. Pressing the tail to stall is
+    // not at rest — straightening that out would stop a beginner ever setting up for the barrel.
     const levelRate = R.headingLevelRate * (this.assists ? 1 : S.proLevelRate);
-    if (Math.abs(turnIn) < 0.15) this.heading = damp(this.heading, 0, levelRate, dt);
+    const quiet = !dual || (Math.abs(st.trim) < 0.3 && Math.abs(st.compression) < 0.5);
+    if (Math.abs(turnIn) < 0.15 && quiet) this.heading = damp(this.heading, 0, levelRate, dt);
     else this.heading = wrapAngle(this.heading + rate * turnIn * dt);
 
     // board yaw: feet twisting opposite ways pivot the board out from under the direction of travel

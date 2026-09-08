@@ -151,28 +151,33 @@ describe('dual-stick rider', () => {
     expect(Math.abs(r.rider.heading)).toBeLessThan(peakHeading * 0.5);
   });
 
-  it('pumping in time with the face beats standing still, and out of phase does not', () => {
-    // a player who pumps properly: steer up when low on the face and down when high, and time the
-    // extension to the climb — extend going up, compress going down (docs/MECHANICS.md §4)
-    const inPhase = rig();
-    inPhase.run(8, () => {
-      const r = inPhase.rider;
-      const rail = r.v < 0.5 ? 0.7 : -0.7;
-      const press = r.headingDeg > 0 ? 1 : -1; // stick up = extend, down = compress
-      return feet([rail, press], [rail, press]);
-    });
-    // the same rail line, but the feet move against the wave instead of with it
-    const outOfPhase = rig();
-    outOfPhase.run(8, () => {
-      const r = outOfPhase.rider;
-      const rail = r.v < 0.5 ? 0.7 : -0.7;
-      const press = r.headingDeg > 0 ? -1 : 1;
-      return feet([rail, press], [rail, press]);
-    });
+  it('pumping in time with the face puts energy in; out of phase puts none in', () => {
+    // A player who works the face: steer up when low and down when high. The two riders follow the
+    // same rail line and differ only in when they extend, so the comparison isolates the phase.
+    const session = (phase: 1 | -1) => {
+      const r = rig();
+      let work = 0;
+      const startU = r.rider.u;
+      r.run(8, () => {
+        work += r.rider.stance.pumpWork;
+        const rail = r.rider.v < 0.5 ? 0.7 : -0.7;
+        const press = (r.rider.headingDeg > 0 ? 1 : -1) * phase; // stick up = extend, down = compress
+        return feet([rail, press], [rail, press]);
+      });
+      return { work, distance: r.rider.u - startU, rider: r.rider, log: r.log };
+    };
+    const inPhase = session(1);
+    const outOfPhase = session(-1);
     const passenger = rig();
+    const passengerStart = passenger.rider.u;
     passenger.run(8, () => feet([0, 0], [0, 0]));
-    expect(inPhase.rider.speed).toBeGreaterThan(passenger.rider.speed + 1);
-    expect(inPhase.rider.speed).toBeGreaterThan(outOfPhase.rider.speed + 1);
+
+    // the mechanism: in phase the legs do work, out of phase they do essentially none
+    expect(inPhase.work).toBeGreaterThan(20);
+    expect(outOfPhase.work).toBeLessThan(inPhase.work * 0.1);
+    // and it shows up as ground covered
+    expect(inPhase.distance).toBeGreaterThan(outOfPhase.distance);
+    expect(inPhase.distance).toBeGreaterThan(passenger.rider.u - passengerStart);
     expect(inPhase.log.filter((l) => l.startsWith('wipeout'))).toEqual([]);
   });
 
@@ -199,6 +204,22 @@ describe('dual-stick rider', () => {
     const pop = r.log.find((l) => l.startsWith('launch:'));
     expect(pop).toBeDefined();
     expect(Number(pop!.split(':')[1])).toBeGreaterThan(0.5);
+  });
+
+  it('auto-trim straightens a resting board but does not fight a deliberate stall', () => {
+    // sticks at rest: the assist finds a line again
+    const resting = rig();
+    resting.run(0.5, () => feet([1, 0], [1, 0]));
+    const turned = resting.rider.heading;
+    expect(turned).toBeGreaterThan(0.15);
+    resting.run(1.5, () => ({}));
+    expect(Math.abs(resting.rider.heading)).toBeLessThan(Math.abs(turned) * 0.4);
+    // pressing the tail is not "at rest": the angle is held, which is what setting up for the tube needs
+    const stalling = rig();
+    stalling.run(0.5, () => feet([1, 0], [1, 0]));
+    const held = stalling.rider.heading;
+    stalling.run(1.5, () => feet([0, -1], [0, 1]));
+    expect(Math.abs(stalling.rider.heading)).toBeGreaterThan(Math.abs(held) * 0.6);
   });
 
   it('is deterministic and reproduces exactly from the same inputs', () => {
