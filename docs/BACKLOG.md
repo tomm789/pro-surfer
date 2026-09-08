@@ -47,8 +47,8 @@ The pool now has zones (`beach.zones`): a lap passes through a barrel section, a
 - [ ] Visible AI surfers: contest opponents exist only as a score model (`src/goals/contest.ts`). Render them surfing their own waves, and add drop-in hazards in free surf.
 - [ ] Wave variety: sets and lulls, multiple peaks, wave selection from the line-up, wind and chop affecting the face (`src/wave`).
 - [ ] Trick catalogue completeness against design doc §5: check every listed trick has an entry in `data/tricks.json` with the right input and section; add missing exit moves and specials per rider.
-- [ ] The Trick Book still lists button inputs, which is wrong for the dual scheme. Rewrite it as a description of *shapes* — what the board has to do for each recognised turn — and show the recogniser's thresholds so the player can learn what counts as a snap.
-- [ ] Air tricks are still catalogue-driven (grab buttons). Consider recognising grabs from which stick is pushed where while the grab button is held, so the air game matches the face game.
+- [ ] Specials (face and air) are still button sequences on the left stick gated by the meter. Give them shapes too (MECHANICS §10), or fold them into the recogniser as bigger versions of the basic turns.
+- [ ] Tube tricks are still direction + button. They could read the feet as the air grabs do (`feet` on the tube entries and a `readGrabs` for the tube section).
 - [ ] Longboard mode (design doc §11 requested feature): different physics, cross-stepping, nose rides.
 - [ ] Create-a-surfer: suit colours and board graphics in the roster UI.
 - [ ] Replay saving and sharing: recordings are small (inputs only); save the best chain per beach, allow export/import as a file or URL.
@@ -81,3 +81,9 @@ The pool now has zones (`beach.zones`): a lap passes through a barrel section, a
 - Onboarding tests that drive the real lessons, and a smoke test that drives a scored run through the
   game shell — added after a bug where the recogniser was never constructed in the real game and a
   full run scored zero while the ride scene scored fine in isolation.
+- Pool zones on the wave meter with a section callout; audio that follows the stance (rail hiss, pop,
+  named turns, slides, zone calls).
+- Character face and reactions, hand drag with spray, squash and stretch, tail spray on a pivot;
+  `cam=portrait`.
+- Air grabs read from the foot shape under a held hand (`feet` in `data/tricks.json`, MECHANICS §6),
+  and a Trick Book that describes shapes and the recogniser's real thresholds in the stick scheme.

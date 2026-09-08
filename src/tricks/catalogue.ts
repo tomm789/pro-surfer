@@ -117,9 +117,11 @@ const CUE_WORDS: Record<FootCue, string> = { up: 'pulled up', down: 'pressed', t
 /** Plain words for a foot shape, for the trick book and hints. */
 export function describeFeet(feet: Feet): string {
   const parts: string[] = [];
-  if (feet.front) parts.push(`front foot ${CUE_WORDS[feet.front]}`);
-  if (feet.back) parts.push(`back foot ${CUE_WORDS[feet.back]}`);
+  // a twist already says where each foot is, so only cues beyond it are spelled out
+  const implied = feet.twist === 'in' ? { front: 'heel', back: 'toe' } : feet.twist === 'out' ? { front: 'toe', back: 'heel' } : null;
   if (feet.twist) parts.push(feet.twist === 'out' ? 'feet twisted out (front toe, back heel)' : 'feet twisted in (front heel, back toe)');
+  if (feet.front && feet.front !== implied?.front) parts.push(`front foot ${CUE_WORDS[feet.front]}`);
+  if (feet.back && feet.back !== implied?.back) parts.push(`back foot ${CUE_WORDS[feet.back]}`);
   if (feet.tuck) parts.push('tucked');
   return parts.join(', ');
 }

@@ -329,7 +329,7 @@ export class MainGameScene implements GameScene {
     const r = this.availableRiders()[this.riderIndex]!;
     const learned = this.career.data.rewards.filter((x) => x.startsWith('trick:')).map((x) => x.slice(6));
     this.trickBook?.dispose();
-    this.trickBook = new TrickBookScreen(this.ctx.uiRoot, new Set([...r.specials, ...learned]));
+    this.trickBook = new TrickBookScreen(this.ctx.uiRoot, new Set([...r.specials, ...learned]), this.scheme);
     this.trickBook.prime(this.lastInput);
     this.trickBook.onBack = () => {
       this.trickBook?.dispose();
