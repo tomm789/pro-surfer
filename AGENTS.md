@@ -70,7 +70,7 @@ You cannot play the game, so verify like this:
 
 The app exposes `window.__lineup` in headless mode (`?headless=1`): `stepTo(seconds)`, `step(n)`, `render()`, `state()` (scene debug state including the ride event log), `setInput(partialInput | { script: [{ t, input }] })`. The tools wrap this; `--script` feeds time-keyed inputs, e.g. `--script '[{"t":1,"input":{"stand":true}},{"t":2,"input":{"stickY":1}}]'`.
 
-Useful URL parameters (also accepted as `--flag value` by the tools): `scene=game|ride|wave`, `flow=menu|ride|push|head`, `level=<id>`, `beach=<id>`, `ft=<n>`, `seed=<n>`, `auto=1` (stand automatically), `free=1`, `seconds=<n>`, `cam=chase|first|wide|close|shore|beach`, `controls=dual|classic`, `assist=balance`, `debug=1` (on-screen state), `rider=<id>`, `board=<id>`, `alltricks=1`, `objects=0`, `autoreplay=1`, `cheat=riders|boards`.
+Useful URL parameters (also accepted as `--flag value` by the tools): `scene=game|ride|wave`, `flow=menu|ride|push|head`, `level=<id>`, `beach=<id>`, `ft=<n>`, `seed=<n>`, `auto=1` (stand automatically), `free=1`, `seconds=<n>`, `cam=chase|first|wide|close|shore|beach|portrait` (portrait: from the wall side looking at the face), `controls=dual|classic`, `assist=balance`, `debug=1` (on-screen state), `rider=<id>`, `board=<id>`, `alltricks=1`, `objects=0`, `autoreplay=1`, `cheat=riders|boards`.
 
 Rider input fields: `backX`, `backY`, `frontX`, `frontY` (the two feet, −1..1, stick up positive), `stickX`, `stickY` (classic single stick, and menu navigation), `jump`, `carve`, `grab`, `slide`, `spinLeft`, `spinRight`, `cashIn`, `stand`, `duckDive`, `cameraToggle`, `objectCam`, `pause`.
 

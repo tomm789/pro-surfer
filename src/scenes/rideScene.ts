@@ -262,7 +262,7 @@ export class RideScene implements GameScene {
     if (this.rider.controls === 'dual') this.inputManager.setKeymap(KEYMAP_DUAL);
     this.cam = new ChaseCamera(TUNING);
     const camParam = ctx.params.get('cam');
-    if (camParam === 'wide' || camParam === 'close' || camParam === 'shore' || camParam === 'first') this.cam.mode = camParam;
+    if (camParam === 'wide' || camParam === 'close' || camParam === 'shore' || camParam === 'first' || camParam === 'portrait') this.cam.mode = camParam;
     this.rider.pose(this.pose);
     this.cam.snapTo(this.pose, this.wave.params.direction);
     if (!ctx.headless && !this.attract && !ctx.params.has('hosted')) this.inputManager.attach(window);
@@ -466,9 +466,12 @@ export class RideScene implements GameScene {
       a()?.land();
       if (e.rating === 'perfect') a()?.perfect();
       else if (e.rating === 'sloppy') a()?.sloppy();
+      // the face reads the landing before the score does
+      this.riderView.react(e.rating === 'perfect' ? 'delight' : e.rating === 'sloppy' ? 'strain' : 'delight', e.rating === 'perfect' ? 1.6 : 0.9);
     });
     this.events.on('wipeout', (e) => {
       if (e.reason !== 'exit') a()?.wipeout();
+      if (e.reason !== 'exit') this.riderView.react('shock', 2.5);
     });
     this.events.on('tubeEnter', () => a()?.tubeEnter());
     this.events.on('tubeExit', (e) => {
@@ -480,6 +483,12 @@ export class RideScene implements GameScene {
       if (this.rider.dual && e.section === 'face' && worth !== undefined) a()?.turnNamed(worth);
       else if (e.trick.special) a()?.special();
       else a()?.trick();
+      // a big named turn gets a grin and a puff of spray over the tail as the rail releases
+      if (worth !== undefined && worth >= 1.3) {
+        this.riderView.react('delight', 1.1);
+        const p = this.pose;
+        this.burst(p.pos.x - p.forward.x * 0.9, p.pos.y + 0.1, p.pos.z - p.forward.z * 0.9, 18, -p.forward.x * 2, 3.5, -p.forward.z * 2, 0.9, 0.7);
+      }
     });
     this.events.on('wipeout', (e) => {
       if (e.reason === 'slide') a()?.slide(1);
@@ -704,6 +713,33 @@ export class RideScene implements GameScene {
           0.5 + Math.random() * (0.9 + bite),
           0.45 + Math.random() * 0.3,
         );
+      }
+      // the tail thrown out high on the face fans a sheet of spray over the lip: the snap's signature
+      if (slip > 0.35 && r.v > 0.55) {
+        const fan = Math.floor((slip - 0.35) * speed01 * 14);
+        const out = -Math.sign(r.boardYaw || 1) * dir;
+        for (let i = 0; i < fan; i++) {
+          const k = Math.random();
+          this.spray.emit(
+            tx,
+            ty + 0.1,
+            tz,
+            -p.forward.x * 1.5 + p.right.x * out * (2 + k * 4),
+            3.5 + k * 3,
+            -p.forward.z * 1.5 + p.right.z * out * (2 + k * 4),
+            0.8 + Math.random() * 1.4,
+            0.6 + Math.random() * 0.4,
+          );
+        }
+      }
+      // the inside hand dragging: a small wake off the fingers wherever the hand is in the water
+      const hand = this.riderView.hand;
+      if (this.riderView.handReach > 0.3 && hand.height < 0.12) {
+        const wet = Math.min(1, (0.12 - hand.height) / 0.2);
+        const m = Math.floor(1 + wet * speed01 * 5);
+        for (let i = 0; i < m; i++) {
+          this.spray.emit(hand.world.x, hand.world.y + 0.03, hand.world.z, -p.forward.x * (1.5 + speed01 * 2), 1.2 + wet, -p.forward.z * (1.5 + speed01 * 2), 0.35 + Math.random() * 0.4, 0.3 + Math.random() * 0.25, 0.5);
+        }
       }
     }
     // lip mist blown back along the crest near the curl

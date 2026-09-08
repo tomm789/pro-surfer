@@ -37,6 +37,8 @@ type JointName =
 type Pose = Partial<Record<JointName, [number, number, number]>> & { pelvisY?: number; pelvisZ?: number; pelvisX?: number };
 
 const D = Math.PI / 180;
+const DOWN = new THREE.Vector3(0, -1, 0);
+const IDENTITY_Q = new THREE.Quaternion();
 
 /**
  * Joint rotations in degrees (x pitch, y twist, z roll). Board space: +x nose, +y up, +z right rail.
@@ -279,6 +281,34 @@ function ball(r: number, mat: THREE.Material, y = 0): THREE.Mesh {
   return m;
 }
 
+function smoothstep(a: number, b: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
+
+/** A momentary face: something happened and the character shows it for a second or two. */
+export type Reaction = 'delight' | 'strain' | 'shock';
+
+/** The face's controls, each 0…1 unless noted. */
+interface Expression {
+  /** Brows up (+) or knitted down (−). */
+  brow: number;
+  /** Brows angled inward: 0 flat, 1 a full frown. */
+  knit: number;
+  /** Eye openness: 1 normal, 0 shut, >1 wide. */
+  eyes: number;
+  /** Mouth: −1 grimace … 0 flat … 1 grin. */
+  smile: number;
+  /** Mouth open. */
+  open: number;
+}
+
+const REACTIONS: Record<Reaction, Expression> = {
+  delight: { brow: 0.7, knit: 0, eyes: 1.15, smile: 1, open: 0.5 },
+  strain: { brow: -0.6, knit: 1, eyes: 0.55, smile: -0.6, open: 0.2 },
+  shock: { brow: 1, knit: 0, eyes: 1.35, smile: -0.2, open: 1 },
+};
+
 /** A critically damped spring for secondary motion: heavier parts get a lower rate. */
 class Lag {
   value = 0;
@@ -320,6 +350,19 @@ export class SurferModel {
   private hips!: THREE.Mesh;
   /** Pose-blended pelvis position; the live position is this plus the stance offsets. */
   private pelvisBase = new THREE.Vector3(0, 0.52, 0);
+  // the face: light parts, so they move fast, but never instantly
+  private eyes: THREE.Mesh[] = [];
+  private brows: THREE.Mesh[] = [];
+  private mouth!: THREE.Mesh;
+  private face = { brow: new Lag(18, 0.8), knit: new Lag(18, 0.8), eyes: new Lag(22, 0.8), smile: new Lag(16, 0.8), open: new Lag(20, 0.8) };
+  private reaction: { kind: Reaction; left: number; total: number } | null = null;
+  private blinkIn = 2.5;
+  private blinkLeft = 0;
+  /** How far the inside hand is reaching for the water, 0…1, for the spray. */
+  handReach = 0;
+  handSide: 'l' | 'r' = 'l';
+  private aimTmp = new THREE.Vector3();
+  private aimQ = new THREE.Quaternion();
 
   constructor(look: SurferLook = DEFAULT_LOOK, boardLength = 1.9) {
     const suit = new THREE.MeshStandardMaterial({ color: look.suit, roughness: 0.72 });
@@ -361,24 +404,32 @@ export class SurferModel {
     skull.scale.set(1, 0.96, 1.02);
     head.add(skull);
     // the face looks along −x in head-local space (the chain is yawed 90° at the pelvis)
+    // the face sits proud of the skull's surface (radius 0.19) so the eyes, brows and mouth all show
     const face = new THREE.Group();
-    face.position.set(-0.13, 0.17, 0);
+    face.position.set(-0.175, 0.17, 0);
     head.add(face);
     for (const s of [-1, 1]) {
+      // the pupil rides inside the eye so a squint or a blink closes over it
       const eye = ball(0.05, eyeWhite);
       eye.position.set(0.0, 0.0, s * 0.075);
       eye.scale.set(0.6, 1, 1);
       face.add(eye);
       const p = ball(0.026, pupil);
-      p.position.set(-0.028, 0.0, s * 0.082);
-      face.add(p);
+      p.position.set(-0.028 / 0.6, 0.0, s * 0.007);
+      p.scale.set(1 / 0.6, 1, 1);
+      eye.add(p);
+      this.eyes.push(eye);
+      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.016, 0.075), hair);
+      brow.position.set(-0.012, 0.062, s * 0.075);
+      face.add(brow);
+      this.brows.push(brow);
     }
-    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.016, 0.075), hair);
-    brow.position.set(-0.03, 0.062, 0.075);
-    face.add(brow);
-    const brow2 = brow.clone();
-    brow2.position.z = -0.075;
-    face.add(brow2);
+    // the mouth: a short bar that bends into a grin or a grimace and opens into an O
+    const lip = new THREE.MeshStandardMaterial({ color: 0x6b2f2a, roughness: 0.7 });
+    this.mouth = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.009, 5, 10, Math.PI), lip);
+    this.mouth.position.set(-0.02, -0.075, 0);
+    this.mouth.rotation.set(Math.PI, Math.PI / 2, 0);
+    face.add(this.mouth);
     // hair: a cap plus a tuft that trails behind the head
     const cap = new THREE.Mesh(new THREE.SphereGeometry(0.196, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.58), hair);
     cap.position.y = 0.175;
@@ -430,6 +481,16 @@ export class SurferModel {
     if (on === this.firstPerson) return;
     this.firstPerson = on;
     for (const o of this.upperBody) o.visible = !on;
+  }
+
+  /** Something happened: show it on the face for a moment, on top of whatever the state says. */
+  react(kind: Reaction, seconds = 1.4): void {
+    this.reaction = { kind, left: seconds, total: seconds };
+  }
+
+  /** World position of a hand, for spray where it drags. */
+  handWorld(side: 'l' | 'r', out: THREE.Vector3): THREE.Vector3 {
+    return this.joints.get(`${side}Hand` as JointName)!.getWorldPosition(out);
   }
 
   private makeBoard(len: number, look: SurferLook): THREE.Group {
@@ -544,13 +605,41 @@ export class SurferModel {
       this.pelvis.rotateZ(lean * 0.3);
       j('spine').rotateZ(lean * 0.22);
       j('chest').rotateZ(lean * 0.16);
-      // the inside arm reaches toward the face; on a committed rail the hand gets close to dragging
+      // the inside arm reaches toward the face; on a committed rail, pressed hard, the hand goes all the
+      // way down and drags — the arm straightens so it can get there. The outside arm rises for balance.
       const reach = Math.max(0, lean);
       const trail = Math.max(0, -lean);
       j('lUpper').rotateZ(-reach * 0.75 + trail * 0.25);
       j('lFore').rotateX(-reach * 0.5);
       j('rUpper').rotateZ(trail * 0.7 - reach * 0.2);
       j('rFore').rotateX(-trail * 0.45);
+      // The drag is aimed rather than posed: the inside upper arm is pointed straight at the water on
+      // the low-rail side (chest-local: the body faces −x, the wall; +x is the shore side) and the
+      // forearm straightens so the hand can get there. The other arm goes up as a counterweight.
+      const drag = grounded ? smoothstep(0.6, 1, Math.abs(lean)) * (0.45 + 0.55 * Math.max(0, c)) : 0;
+      this.handReach = drag;
+      if (drag > 0) {
+        const wallSide = lean >= 0;
+        // the arm on the side of the lean: the tail-side (left) arm is the one nearer the camera on a
+        // frontside turn, but which arm is "inside" is really about which one hangs lower — use the one
+        // whose shoulder ends up over the low rail after the body has rolled
+        const inside: 'l' | 'r' = wallSide ? 'l' : 'r';
+        const outside: 'l' | 'r' = wallSide ? 'r' : 'l';
+        this.handSide = inside;
+        // mostly down in the chest's frame: the body has already rolled toward the low rail, so this
+        // ends up reaching down and out rather than straight sideways
+        this.aimTmp.set(wallSide ? -0.45 : 0.45, -1, 0).normalize();
+        this.aimQ.setFromUnitVectors(DOWN, this.aimTmp);
+        j(`${inside}Upper` as JointName).quaternion.slerp(this.aimQ, drag);
+        j(`${inside}Fore` as JointName).quaternion.slerp(IDENTITY_Q, drag);
+        this.aimTmp.set(wallSide ? 0.9 : -0.9, 0.35, 0).normalize();
+        this.aimQ.setFromUnitVectors(DOWN, this.aimTmp);
+        j(`${outside}Upper` as JointName).quaternion.slerp(this.aimQ, drag * 0.8);
+      }
+
+      // ── squash and stretch: pressing down squashes the torso, extending stretches it
+      const sq = c > 0 ? c : c * 0.6;
+      j('spine').scale.set(1 + sq * 0.05, 1 - sq * 0.09, 1 + sq * 0.05);
 
       // ── trim: weight visibly shifts along the board
       this.pelvis.position.x += d.trim * 0.1;
@@ -562,6 +651,15 @@ export class SurferModel {
       const armSwing = this.armLag.step(counter, dt);
       j('lUpper').rotateX(-armSwing * 0.6);
       j('rUpper').rotateX(armSwing * 0.6);
+    } else {
+      this.handReach = 0;
+      j('spine').scale.set(1, 1, 1);
+    }
+    // ── in the air the arms windmill for balance, harder the longer the flight
+    if (state === 'air' && !d.trickId) {
+      const wind = Math.min(1, d.airTime * 1.5);
+      j('lUpper').rotateX(Math.sin(this.phase * 9) * 0.45 * wind);
+      j('rUpper').rotateX(Math.sin(this.phase * 9 + 1.3) * 0.45 * wind);
     }
 
     // ── head: heavy, so it lags and settles. It also leads the turn — the character looks where it is going.
@@ -592,6 +690,73 @@ export class SurferModel {
     if (state === 'tube') this.pelvis.position.y -= d.tubeDepth * 0.08;
     this.pelvis.rotation.y += d.fakie ? Math.PI : 0;
     this.board.visible = state !== 'wipeout';
+    this.updateFace(dt, state, d);
+  }
+
+  /**
+   * The face reads the moment: focus on a hard rail, strain in the barrel, wide eyes in the air,
+   * shock in a wipeout, and a reaction (delight on a landing) laid over the top for a second or two.
+   */
+  private updateFace(dt: number, state: RiderState, d: SurferDrive): void {
+    let e: Expression;
+    switch (state) {
+      case 'tube':
+        e = { brow: -0.4 - d.tubeDepth * 0.3, knit: 0.5 + d.tubeDepth * 0.5, eyes: 0.75 - d.tubeDepth * 0.2, smile: -0.3, open: 0.3 };
+        break;
+      case 'air':
+        e = { brow: 0.5, knit: 0, eyes: 1.2, smile: 0.2, open: 0.6 };
+        break;
+      case 'wipeout':
+        e = REACTIONS.shock;
+        break;
+      case 'prone':
+        e = { brow: 0.1, knit: 0, eyes: 1, smile: 0.2, open: 0 };
+        break;
+      default: {
+        // the harder the rail is pressed the more the face sets; a clean line at speed is a small grin
+        const effort = Math.min(1, Math.abs(d.rail) * 0.7 + Math.max(0, d.compression) * 0.5 + Math.abs(d.twist) * 0.6);
+        e = { brow: -effort * 0.5, knit: effort * 0.7, eyes: 1 - effort * 0.3, smile: 0.35 * d.speed01 - effort * 0.4, open: effort * 0.25 };
+      }
+    }
+    if (this.reaction) {
+      const r = this.reaction;
+      r.left -= dt;
+      if (r.left <= 0) this.reaction = null;
+      else {
+        // full strength for most of the reaction, then a fade back to the state
+        const w = Math.min(1, r.left / (r.total * 0.35));
+        const R = REACTIONS[r.kind];
+        e = { brow: e.brow + (R.brow - e.brow) * w, knit: e.knit + (R.knit - e.knit) * w, eyes: e.eyes + (R.eyes - e.eyes) * w, smile: e.smile + (R.smile - e.smile) * w, open: e.open + (R.open - e.open) * w };
+      }
+    }
+    // blinks: not on a schedule the eye can predict
+    this.blinkIn -= dt;
+    if (this.blinkIn <= 0) {
+      this.blinkLeft = 0.09;
+      this.blinkIn = 2 + Math.random() * 3.5;
+    }
+    let eyes = this.face.eyes.step(e.eyes, dt);
+    if (this.blinkLeft > 0) {
+      this.blinkLeft -= dt;
+      eyes = 0.08;
+    }
+    const brow = this.face.brow.step(e.brow, dt);
+    const knit = this.face.knit.step(e.knit, dt);
+    const smile = this.face.smile.step(e.smile, dt);
+    const open = this.face.open.step(e.open, dt);
+    for (let i = 0; i < 2; i++) {
+      const s = i === 0 ? -1 : 1;
+      this.eyes[i]!.scale.y = Math.max(0.05, eyes);
+      const b = this.brows[i]!;
+      b.position.y = 0.062 + brow * 0.02;
+      // knitted brows tilt in toward the nose; raised brows tilt out
+      b.rotation.x = s * (knit * 0.45 - Math.max(0, brow) * 0.2);
+    }
+    // the mouth arc: a grin is the arc opening upward, a grimace the arc flipped, and it stretches open
+    const m = this.mouth;
+    m.rotation.x = smile >= 0 ? Math.PI : 0;
+    m.scale.set(1, 0.25 + Math.abs(smile) * 0.75 + open * 0.6, 0.8 + Math.abs(smile) * 0.4);
+    m.position.y = -0.075 - (smile >= 0 ? 0 : 0.02) - open * 0.01;
   }
 
   get poseName(): string {

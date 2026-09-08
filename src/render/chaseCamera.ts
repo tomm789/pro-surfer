@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Tuning } from '@/core/tuning';
 import type { RiderPose, RiderState } from '@/rider/rider';
 
-export type CameraMode = 'chase' | 'wide' | 'tube' | 'object' | 'close' | 'shore' | 'beach' | 'first';
+export type CameraMode = 'chase' | 'wide' | 'tube' | 'object' | 'close' | 'shore' | 'beach' | 'first' | 'portrait';
 
 /** Stance readout the camera reacts to (docs/MECHANICS.md §8). */
 export interface CameraStance {
@@ -105,6 +105,13 @@ export class ChaseCamera {
       // debug: look from the rider toward the beach
       this.desiredPos.set(p.x, p.y + 6, p.z + 14);
       this.desiredLook.set(p.x + dir * 40, 4, p.z - 160);
+      return;
+    }
+    if (this.mode === 'portrait') {
+      // on the wall side just ahead of the rider, looking back at the face: the scrapbook's close-up
+      const up = pose.up;
+      this.desiredPos.set(p.x + dir * 1.6 + up.x * 1.1, p.y + up.y * 1.1, p.z + 2.3 + up.z * 1.1);
+      this.desiredLook.set(p.x + up.x * 1.15, p.y + up.y * 1.15, p.z + up.z * 1.15);
       return;
     }
     if (state === 'tube' || (this.mode === 'tube' && state !== 'air')) {
