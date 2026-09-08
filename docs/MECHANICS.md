@@ -204,3 +204,5 @@ Held here so they do not get lost, to be resolved with a controller in hand:
 - Regular versus goofy stance: swaps which stick is which foot, or leaves the mapping and only changes the model? Currently the mapping is fixed (left = back foot always) because thumbs are not stance-dependent.
 - How much `twist` should the board grip before it breaks into a slide, and should that threshold scale with the Balance stat?
 - Does pumping need an audible rhythm cue for new players, or does that patronise them?
+- The specials are still button sequences gated by the meter. Should they be shapes too — a roundhouse held to a full reversal, a tail slide carried past 90° — and if so does the meter still gate them, or is the meter's job then only the cross-section chain?
+- The grab table (§6) was designed at a desk. Which of the sixteen shapes come out by accident, and which never come out at all?

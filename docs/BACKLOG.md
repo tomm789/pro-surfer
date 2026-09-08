@@ -8,16 +8,25 @@ Prioritised open work. Milestones M0–M10 of `docs/DESIGN.md` §13 are implemen
 
 ## P0 — the stick scheme on a real controller
 
-The stance model has been verified by measurement (`tests/stance.test.ts`, `tests/feel.test.ts`) and by a scripted virtual player, but **nobody has held a controller yet**. This is the first thing to fix and everything here is judged by feel, not by a test. Constants live in `data/tuning.json` under `stance`, `recognizer` and `camera`.
+The stance model has been verified by measurement (`tests/stance.test.ts`, `tests/feel.test.ts`), by a scripted virtual player and by the smoke's scored run, but **nobody has held a controller yet**. Everything below is judged by feel, not by a test, and it is the only thing left that a test cannot do. Constants live in `data/tuning.json` under `stance`, `recognizer` and `camera`; every one of them is read live, so a change in the file shows on the next reload of the dev server.
 
-- [ ] **Rail feel**: `stance.footFollowRate`, `railFollowRate`, `railCarveBonus`, `compressionTurnBonus`. A committed lean should feel heavy and deliberate, not twitchy; a small lean should hold a line.
+The session, in order:
+
+0. **Options → Controller test** first. Both sticks should move the dots, down should read as *pressed* on the bars, and every button should light. If the sticks are swapped or an axis is inverted on this pad, that is an input-manager fix (`src/input/inputManager.ts`), not a tuning one.
+1. **Lesson 1 at the pool** with assists on: stand, pump, carve. Then free surf at the pool.
+2. Work through the feel list below, one constant at a time, and write the numbers that felt right into `data/tuning.json` with a note in the commit about what changed and why.
+
+- [ ] **Rail feel**: `stance.footFollowRate`, `railFollowRate`, `railCarveBonus`, `compressionTurnBonus`. A committed lean should feel heavy and deliberate, not twitchy; a small lean should hold a line. `rider.headingMaxRad` is the wall a held rail runs into.
 - [ ] **Pump rhythm**: `pumpFullRate`, `pumpAccelScale`, `pumpPhaseDeadzone`. The window for being "in phase" must be generous enough to learn but tight enough to reward timing. Consider whether a beginner needs an audible or visual cue (open question in MECHANICS §10).
 - [ ] **Pop**: `popRate`, `loadDecaySeconds`. Crouch-then-flick must fire reliably at the lip without firing accidentally during a pump. This is the single most likely thing to feel wrong.
 - [ ] **Twist and slide**: `twistTorque`, `twistGrip`, `twistMaxRad`, `twistSteer`, `slideFailSeconds`. A snap should snap; a slide should be recoverable, not a death sentence (MECHANICS §3.4).
-- [ ] **Recogniser thresholds**: `recognizer.*`. Does what the game names match what the player thinks they did? Wrong names are worse than no names. Watch for turns that score nothing because the rail never released.
+- [ ] **Grabs from the feet**: `stance.grabSettleSeconds` and the shapes in `data/tricks.json`. Does the grab you meant come out? If the shapes feel arbitrary, the table in MECHANICS §6 is the thing to redesign, not the matcher.
+- [ ] **Recogniser thresholds**: `recognizer.*` (the Trick Book shows the live values). Does what the game names match what the player thinks they did? Wrong names are worse than no names. Watch for turns that score nothing because the rail never released.
 - [ ] **Camera**: `skateDistance`, `skateHeight`, `railSwing`, `compressionDrop`, and the first-person `fp*` values. First person is rigid by design; if it feels sickening, damp the *look target* rather than the position.
-- [ ] **Assists**: `career.options.assists` is stored but nothing reads it yet. Implement the four assists in MECHANICS §9 (auto-trim, pump assist, rotation assist, landing assist) and default them on, with a Pro toggle that turns all four off.
+- [ ] **Assists vs Pro**: assists on is the tuned default (auto-trim on quiet sticks, spin buttons, the wider landing window, trim drive). Pro turns them off (`proLevelRate`, `proTrimDrive`, `proLandingWindow`). Check Pro is playable and assists never fight a deliberate input.
+- [ ] **Sets**: `beach.swell` on the ocean breaks. Is the lull too small to be fun, is the set a wall? `peak`, `lull`, `period`, `setSeconds` per beach.
 - [ ] Classic scheme regression: it is still selectable and every lesson has classic hints; check it still plays after any stance change.
+- [ ] Regular vs goofy: the mapping is fixed (left stick = back foot). If a goofy-footer wants the sticks swapped, that is an option to add (MECHANICS §10).
 
 ## P1 — more from the pool
 
