@@ -194,3 +194,22 @@ describe('clock', () => {
     expect(r.banked.length).toBe(1);
   });
 });
+
+describe('results breakdown', () => {
+  it('groups banked entries by trick with points after the multiplier, biggest first', () => {
+    const r = rig({ seconds: 60 });
+    r.land('indy', 'air');
+    r.land('indy', 'air');
+    r.land('method', 'air');
+    r.steps(60 * 6); // idle: the chain banks by itself
+    r.land('snap', 'face');
+    r.steps(60 * 6);
+    const rows = r.run.breakdown();
+    expect(rows.map((x) => x.id)).toEqual(['indy', 'method', 'snap']);
+    expect(rows[0]!.count).toBe(2);
+    expect(rows.reduce((s, x) => s + x.points, 0)).toBe(r.run.score);
+    const best = r.run.bestBanked();
+    expect(best?.entries.length).toBe(3);
+    expect(best?.total).toBe(r.run.bestChain);
+  });
+});

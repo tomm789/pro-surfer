@@ -34,7 +34,7 @@ The pool has zones (`beach.zones`): a lap passes through a barrel section, a wal
 - [ ] **Beaches.** Each beach is identifiable but sparse. Add shoreline geometry (sand, rocks, reef under the water at the reef breaks), vegetation, boats and crowd for the contest beach, a pier with detail, distance haze. `src/render/landmarks.ts`, `environment.ts`, `data/beaches/*.json`.
 - [ ] **Sky and light.** Now: procedural clouds with per-preset cover, a sun disc with corona, sun glitter on the water, and a time of day per level (`sky`, `sunElevationDeg`, `sunAzimuthDeg` in a level file; presets `day|dawn|evening|dusk|night|cloudy` in `src/render/waterUniforms.ts`). Wanted next: cloud shadows on the water, a moon and stars for night, god rays through the lip at a low sun.
 - [ ] **HUD and menus.** Functional DOM. Wanted: a proper art direction (typography, panels, iconography for trick icons, the balance meter, the wave meter), the boat hub as a 3D scene behind the menus, a world map for beach selection.
-- [ ] **Transitions and results.** The results screen and replay chrome are plain; add the TV-broadcast feel the design doc asks for (score readouts, chain breakdown animation).
+- [ ] **Transitions and results.** The results screen now counts the score up, reveals its rows one by one and breaks the score down by trick (`run.breakdown()`) and by section, with the best chain's shape. The replay chrome is still plain; wanted: a lower-third for the replay, a trick-by-trick ticker during it, and a proper "cash in" banner during the run.
 
 ## P1 — audio
 

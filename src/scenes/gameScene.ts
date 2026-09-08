@@ -780,6 +780,19 @@ export class MainGameScene implements GameScene {
       title = lvl.lesson ? (tracker.requiredDone ? 'LESSON COMPLETE' : 'KEEP PRACTISING') : tracker.requiredDone ? 'LEVEL CLEARED' : 'HEAT OVER';
     }
     const rec = this.ride.recording();
+    // the broadcast breakdown: what the score was made of, biggest first, then the best chain's line
+    const breakdown = run.breakdown();
+    const best = run.bestBanked();
+    const shown = breakdown.slice(0, 6);
+    const rest = breakdown.slice(6).reduce((s, r) => s + r.points, 0);
+    const trickRows: ResultRow[] = shown.length
+      ? [
+          { label: 'THE SCORE', value: '', head: true },
+          ...shown.map((r) => ({ label: `${r.name} ×${r.count}`, value: r.points.toLocaleString('en-US'), sub: true })),
+          ...(rest > 0 ? [{ label: `${breakdown.length - shown.length} more`, value: rest.toLocaleString('en-US'), sub: true }] : []),
+        ]
+      : [];
+    const bestLabel = best && best.entries.length > 1 ? `${best.entries.length} tricks · ×${best.multiplier}` : best ? best.entries[0]?.name ?? '' : '';
     this.results = new ResultsScreen(
       this.ctx.uiRoot,
       title,
@@ -787,10 +800,12 @@ export class MainGameScene implements GameScene {
       [
         ...goalRows,
         { label: 'Beach', value: `${beach.name} · ${this.waveFt} ft` },
-        { label: 'Best chain', value: run.bestChain.toLocaleString('en-US') },
-        { label: 'Air points', value: run.bySection.air.toLocaleString('en-US') },
-        { label: 'Face points', value: run.bySection.face.toLocaleString('en-US') },
-        { label: 'Tube points', value: run.bySection.tube.toLocaleString('en-US') },
+        { label: `Best chain${bestLabel ? ` · ${bestLabel}` : ''}`, value: run.bestChain.toLocaleString('en-US') },
+        ...trickRows,
+        { label: 'SECTIONS', value: '', head: true },
+        { label: 'Air points', value: run.bySection.air.toLocaleString('en-US'), sub: true },
+        { label: 'Face points', value: run.bySection.face.toLocaleString('en-US'), sub: true },
+        { label: 'Tube points', value: run.bySection.tube.toLocaleString('en-US'), sub: true },
         { label: 'Special time', value: `${run.meter.totalYellowSeconds.toFixed(1)} s` },
         { label: 'Longest ride', value: `${run.longestRide.toFixed(0)} s` },
         { label: 'Wipeouts', value: String(run.wipeouts), ok: run.wipeouts === 0 },

@@ -21,6 +21,11 @@ const CSS = `
 .scr table{border-collapse:collapse;font-size:17px;font-weight:700;margin-top:6px}
 .scr td{padding:4px 18px 4px 0;color:#dff3ff}
 .scr td.v{color:#fff;text-align:right;font-variant-numeric:tabular-nums}
+.scr td.sub{padding-left:16px;font-weight:600;color:#c9e6f5}
+.scr tr.head td{padding-top:12px;padding-bottom:2px;font-size:12px;letter-spacing:3px;color:#7ff2e6}
+@keyframes rowin{from{opacity:0}to{opacity:1}}
+.scr table.results tr{animation:rowin .32s ease-out both}
+@media (prefers-reduced-motion: reduce){.scr table.results tr{animation:none}}
 .scr .ok{color:#3ef0a0}.scr .bad{color:#ff7a7a}
 `;
 
@@ -195,6 +200,10 @@ export interface ResultRow {
   label: string;
   value: string;
   ok?: boolean;
+  /** A section heading (the label only, small caps). */
+  head?: boolean;
+  /** An indented line under a heading. */
+  sub?: boolean;
 }
 
 export class ResultsScreen {
@@ -205,6 +214,9 @@ export class ResultsScreen {
   onAlt: (() => void) | null = null;
   private timer = 0;
   private prevAlt = false;
+  private bigEl: HTMLDivElement;
+  private bigTarget: number | null = null;
+  private bigShown = -1;
 
   constructor(parent: HTMLElement, title: string, big: string, rows: ResultRow[], foot: string) {
     ensureScreenCss();
@@ -212,18 +224,34 @@ export class ResultsScreen {
     this.root.className = 'scr dim';
     const panel = document.createElement('div');
     panel.className = 'panel';
-    panel.innerHTML = `<h1>${title}</h1><div class="big">${big}</div>`;
+    panel.innerHTML = `<h1>${title}</h1><div class="big"></div>`;
+    this.bigEl = panel.querySelector('.big')!;
+    // a plain number counts up like a broadcast scoreboard; anything else just shows
+    const numeric = Number(big.replace(/,/g, ''));
+    if (big && Number.isFinite(numeric) && /^[\d,]+$/.test(big)) this.bigTarget = numeric;
+    else this.bigEl.textContent = big;
     const table = document.createElement('table');
-    for (const r of rows) {
+    table.className = 'results';
+    rows.forEach((r, i) => {
       const tr = document.createElement('tr');
-      const a = document.createElement('td');
-      a.textContent = r.label;
-      const b = document.createElement('td');
-      b.className = 'v' + (r.ok === true ? ' ok' : r.ok === false ? ' bad' : '');
-      b.textContent = r.value;
-      tr.append(a, b);
+      tr.style.animationDelay = `${0.25 + i * 0.07}s`;
+      if (r.head) {
+        tr.className = 'head';
+        const a = document.createElement('td');
+        a.colSpan = 2;
+        a.textContent = r.label;
+        tr.append(a);
+      } else {
+        const a = document.createElement('td');
+        a.textContent = r.label;
+        if (r.sub) a.className = 'sub';
+        const b = document.createElement('td');
+        b.className = 'v' + (r.ok === true ? ' ok' : r.ok === false ? ' bad' : '');
+        b.textContent = r.value;
+        tr.append(a, b);
+      }
       table.appendChild(tr);
-    }
+    });
     panel.appendChild(table);
     const f = document.createElement('div');
     f.className = 'foot';
@@ -241,6 +269,15 @@ export class ResultsScreen {
 
   update(input: Readonly<RiderInput>, dt: number): void {
     this.timer += dt;
+    if (this.bigTarget !== null) {
+      // count up over a second and a bit, easing out so the last digits settle
+      const k = Math.min(1, this.timer / 1.3);
+      const shown = Math.round(this.bigTarget * (1 - Math.pow(1 - k, 3)));
+      if (shown !== this.bigShown) {
+        this.bigShown = shown;
+        this.bigEl.textContent = shown.toLocaleString('en-US');
+      }
+    }
     const n = this.nav.read(input, dt);
     const alt = input.slide && !this.prevAlt;
     this.prevAlt = input.slide;

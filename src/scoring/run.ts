@@ -217,6 +217,37 @@ export class RunController {
     this.events.emit('runEnd', { score: this.score, reason });
   }
 
+  /**
+   * What the score was made of: every banked entry grouped by trick, with the points it earned after
+   * its chain's multiplier, biggest first. For the results screen.
+   */
+  breakdown(): { id: string; name: string; section: TrickSection; count: number; points: number }[] {
+    const by = new Map<string, { id: string; name: string; section: TrickSection; count: number; points: number }>();
+    for (const b of this.banked) {
+      if (!b.entries.length) continue;
+      // the chain rounds once on its sum, so rounding each entry can drift by a point or two: the
+      // difference goes to the biggest entry so the rows always add up to what was banked
+      const pts = b.entries.map((e) => Math.round(e.value * b.multiplier));
+      let biggest = 0;
+      for (let i = 1; i < pts.length; i++) if (pts[i]! > pts[biggest]!) biggest = i;
+      pts[biggest]! += b.total - pts.reduce((s, x) => s + x, 0);
+      b.entries.forEach((e, i) => {
+        const row = by.get(e.id) ?? { id: e.id, name: e.name, section: e.section, count: 0, points: 0 };
+        row.count++;
+        row.points += pts[i]!;
+        by.set(e.id, row);
+      });
+    }
+    return [...by.values()].sort((a, b) => b.points - a.points || b.count - a.count);
+  }
+
+  /** The highest-scoring banked chain, for the results screen's headline. */
+  bestBanked(): BankedChain | null {
+    let best: BankedChain | null = null;
+    for (const b of this.banked) if (!best || b.total > best.total) best = b;
+    return best;
+  }
+
   snapshot(): Record<string, unknown> {
     return {
       score: this.score,
