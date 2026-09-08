@@ -6,7 +6,8 @@ import { TUNING } from '@/core/tuning';
 import { listBeaches } from '@/world/beaches';
 import { AudioManager } from '@/audio/audio';
 import { BootScreen, MenuNav, MenuScreen, ResultsScreen, type MenuItem, type ResultRow } from '@/ui/screens';
-import { ReplayPlayer, type Recording } from '@/core/replay';
+import { ReplayPlayer, decodeRecording, encodeRecording, type Recording } from '@/core/replay';
+import type { SavedReplay } from '@/save/career';
 import { Transition } from '@/ui/transition';
 import { Scrapbook } from '@/save/scrapbook';
 import { ScrapbookScreen } from '@/ui/scrapbook';
@@ -56,6 +57,7 @@ export class MainGameScene implements GameScene {
   private controllerTest: ControllerTestScreen | null = null;
   private tuning: TuningPanel | null = null;
   private saveNote = 'to the clipboard';
+  private replayNote = 'as text, to the clipboard';
   private prevKeys = new Set<string>();
   private riderIndex = 0;
   private boardIndex = 0;
@@ -248,25 +250,76 @@ export class MainGameScene implements GameScene {
   }
 
   private openRecords(): void {
+    this.flow = 'menu';
     this.menu?.dispose();
     this.menu = null;
     const r = this.career.data.records;
-    const rows = [
-      { label: 'Best session', value: r.bestScore.toLocaleString('en-US') },
-      { label: 'Best chain', value: r.bestChain.toLocaleString('en-US') },
-      { label: 'Longest tube', value: `${r.longestTube.toFixed(1)} s` },
-      { label: 'Most special time', value: `${r.mostSpecialTime.toFixed(1)} s` },
-      ...Object.entries(r.perBeach).map(([b, v]) => ({ label: getBeach(b).name, value: v.toLocaleString('en-US') })),
-      ...Object.entries(r.byRider).map(([rid, v]) => ({ label: getRider(rid).name, value: v.toLocaleString('en-US') })),
+    const stat = (id: string, label: string, value: string): MenuItem => ({ id, label, value: () => value, disabled: true });
+    const items: MenuItem[] = [
+      stat('best', 'Best session', r.bestScore.toLocaleString('en-US')),
+      stat('chain', 'Best chain', r.bestChain.toLocaleString('en-US')),
+      stat('tube', 'Longest tube', `${r.longestTube.toFixed(1)} s`),
+      stat('special', 'Most special time', `${r.mostSpecialTime.toFixed(1)} s`),
+      ...Object.entries(r.perBeach).map(([b, v]) => stat(`beach-${b}`, getBeach(b).name, v.toLocaleString('en-US'))),
+      ...Object.entries(r.byRider).map(([rid, v]) => stat(`rider-${rid}`, getRider(rid).name, v.toLocaleString('en-US'))),
     ];
-    this.results = new ResultsScreen(this.ctx.uiRoot, 'RECORD BOOK', '', rows, 'A / Space: back');
-    this.results.prime(this.lastInput);
-    this.results.onDone = () => {
-      this.results?.dispose();
-      this.results = null;
-      this.openMenu();
-    };
-    this.flow = 'results';
+    // the best chain at each beach is kept as a replay; select one to watch it
+    const replays = this.career.savedReplays();
+    for (const rep of replays) {
+      items.push({
+        id: `replay-${rep.beach}`,
+        label: `▶ Replay · ${getBeach(rep.beach).name}`,
+        value: () => `${rep.points.toLocaleString('en-US')} · ${getRider(rep.rider).name}`,
+        onSelect: () => {
+          try {
+            this.playReplay(decodeRecording(rep.rec));
+          } catch {
+            this.replayNote = 'that replay could not be read';
+          }
+        },
+      });
+    }
+    if (replays.length) {
+      items.push({
+        id: 'copy',
+        label: 'Copy the best replay',
+        value: () => this.replayNote,
+        onSelect: () => {
+          const best = replays[0]!;
+          const blob = JSON.stringify({ lineupReplay: 1, beach: best.beach, rider: best.rider, points: best.points, rec: best.rec });
+          void navigator.clipboard?.writeText(blob).catch(() => undefined);
+          console.log('[replay] ' + blob);
+          this.replayNote = `copied ${getBeach(best.beach).name} (${Math.round(blob.length / 1024)} KB, also in the console)`;
+          this.audio.uiSelect();
+        },
+      });
+    }
+    items.push({
+      id: 'import',
+      label: 'Watch a pasted replay',
+      value: () => 'paste a copied replay',
+      onSelect: () => {
+        const raw = window.prompt('Paste a copied replay');
+        if (raw === null) return;
+        try {
+          const parsed = JSON.parse(raw) as { lineupReplay?: number; beach?: string; rider?: string; points?: number; rec?: unknown };
+          if (parsed.lineupReplay !== 1) throw new Error('not a replay');
+          const rec = decodeRecording(parsed.rec);
+          if (typeof parsed.beach === 'string' && typeof parsed.points === 'number' && getBeach(parsed.beach)) {
+            this.career.recordReplay({ beach: parsed.beach, rider: typeof parsed.rider === 'string' ? parsed.rider : this.career.data.rider, points: parsed.points, when: Date.now() / 1000, rec: parsed.rec as SavedReplay['rec'] });
+          }
+          this.playReplay(rec);
+        } catch {
+          this.replayNote = 'not a valid replay';
+          this.audio.uiBack();
+        }
+      },
+    });
+    items.push({ id: 'back', label: 'Back to the boat', onSelect: () => this.openMenu() });
+    this.careerMenu?.dispose();
+    this.careerMenu = new MenuScreen(this.ctx.uiRoot, 'RECORD BOOK', items, 'Select a replay to watch it · copied replays are text you can paste to a friend');
+    this.careerMenu.prime(this.lastInput);
+    this.careerMenu.onBack = () => this.openMenu();
   }
 
   private beaches = (() => {
@@ -694,6 +747,8 @@ export class MainGameScene implements GameScene {
     this.replayAccum = 0;
     this.replayNav.prime(this.lastInput);
     if (this.results) this.results.root.style.display = 'none';
+    this.careerMenu?.dispose();
+    this.careerMenu = null;
     this.ride?.setHudVisible(false);
     this.audio.uiSelect();
     this.flow = 'replay';
@@ -729,8 +784,12 @@ export class MainGameScene implements GameScene {
     if (this.results) {
       this.results.root.style.display = '';
       this.results.prime(this.lastInput);
+      this.flow = 'results';
+    } else {
+      // a replay watched from the record book goes back there
+      this.ride?.setHudVisible(false);
+      this.openRecords();
     }
-    this.flow = 'results';
   }
 
   private beginRun(levelId: string | null = null, seconds: number | null = null, label = ''): void {
@@ -876,6 +935,11 @@ export class MainGameScene implements GameScene {
       title = lvl.lesson ? (tracker.requiredDone ? 'LESSON COMPLETE' : 'KEEP PRACTISING') : tracker.requiredDone ? 'LEVEL CLEARED' : 'HEAT OVER';
     }
     const rec = this.ride.recording();
+    // the best chain at each beach is kept as a replay in the career (only a real, scored chain)
+    if (rec.highlight && rec.highlight.points > 0 && !this.ride.attract) {
+      const kept = this.career.recordReplay({ beach: beach.id, rider: this.availableRiders()[this.riderIndex]!.id, points: rec.highlight.points, when: Date.now() / 1000, rec: encodeRecording(rec) });
+      if (kept) goalRows.push({ label: 'Replay kept', value: `best chain at ${beach.name}`, ok: true });
+    }
     // the broadcast breakdown: what the score was made of, biggest first, then the best chain's line
     const breakdown = run.breakdown();
     const best = run.bestBanked();

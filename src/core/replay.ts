@@ -84,6 +84,64 @@ export class ReplayPlayer {
   }
 }
 
+/**
+ * Storage form of a recording: each key is one row of numbers — the frame, the six axes as integers
+ * in 1/64ths (the input manager quantises sticks to that grid, so this is exact), a bitmask of the
+ * buttons and the cash-in flag. About a fifth the size of the JSON of the live form.
+ */
+export interface CompactRecording {
+  v: 1;
+  hz: number;
+  seed: number;
+  params: string;
+  frames: number;
+  highlight: Highlight | null;
+  keys: number[][];
+}
+
+const AXES: (keyof RiderInput)[] = ['stickX', 'stickY', 'backX', 'backY', 'frontX', 'frontY'];
+const BUTTONS: (keyof RiderInput)[] = ['jump', 'carve', 'grab', 'slide', 'spinLeft', 'spinRight', 'cashIn', 'stand', 'duckDive', 'cameraToggle', 'objectCam', 'pause'];
+/** Sticks are stored on this grid; the input manager rounds to it so a replay is bit-exact. */
+export const AXIS_STEPS = 64;
+
+export function quantiseAxis(v: number): number {
+  const q = Math.round(Math.max(-1, Math.min(1, v)) * AXIS_STEPS) / AXIS_STEPS;
+  return q === 0 ? 0 : q; // never −0: it would survive the sim but not JSON
+}
+
+export function encodeRecording(rec: Recording): CompactRecording {
+  const keys = rec.keys.map((k) => {
+    let mask = 0;
+    BUTTONS.forEach((b, i) => {
+      if (k.i[b]) mask |= 1 << i;
+    });
+    return [k.f, ...AXES.map((a) => Math.round((k.i[a] as number) * AXIS_STEPS)), mask, k.c ? 1 : 0];
+  });
+  return { v: 1, hz: rec.hz, seed: rec.seed, params: rec.params, frames: rec.frames, highlight: rec.highlight, keys };
+}
+
+/** Back to the live form; throws on anything that is not a compact recording. */
+export function decodeRecording(c: unknown): Recording {
+  const r = c as Partial<CompactRecording>;
+  if (!r || r.v !== 1 || typeof r.hz !== 'number' || typeof r.seed !== 'number' || typeof r.params !== 'string' || !Array.isArray(r.keys) || typeof r.frames !== 'number') {
+    throw new Error('not a replay');
+  }
+  const keys: ReplayKey[] = r.keys.map((row) => {
+    // frame, the six axes, the button mask, the cash-in flag
+    if (!Array.isArray(row) || row.length !== 1 + AXES.length + 2 || row.some((x) => typeof x !== 'number')) throw new Error('bad replay key');
+    const i = cloneInput(NEUTRAL_INPUT);
+    AXES.forEach((a, j) => {
+      (i as unknown as Record<string, number>)[a] = row[1 + j]! / AXIS_STEPS;
+    });
+    const mask = row[1 + AXES.length]!;
+    BUTTONS.forEach((b, j) => {
+      (i as unknown as Record<string, boolean>)[b] = (mask & (1 << j)) !== 0;
+    });
+    return { f: row[0]!, i, c: row[2 + AXES.length] === 1 };
+  });
+  return { hz: r.hz, seed: r.seed, params: r.params, keys, frames: r.frames, highlight: r.highlight ?? null };
+}
+
 /** Tracks the highest-scoring chain's frame window so the replay can jump straight to it. */
 export class HighlightTracker {
   best: Highlight | null = null;

@@ -72,3 +72,35 @@ describe('highlight tracker', () => {
     expect(h.best).toEqual({ startFrame: 240, endFrame: 430, points: 9000 });
   });
 });
+
+describe('compact recordings', () => {
+  it('round-trip exactly through the compact form, including buttons and cash-in frames', async () => {
+    const { encodeRecording, decodeRecording, quantiseAxis } = await import('@/core/replay');
+    const r = new InputRecorder();
+    const rng = new Rng(4);
+    for (let f = 0; f < 300; f++) {
+      const i = cloneInput(NEUTRAL_INPUT);
+      i.backX = quantiseAxis(rng.range(-1, 1));
+      i.backY = quantiseAxis(rng.range(-1, 1));
+      i.frontX = quantiseAxis(rng.range(-1, 1));
+      i.frontY = quantiseAxis(rng.range(-1, 1));
+      i.stickX = quantiseAxis(rng.range(-1, 1));
+      i.grab = rng.chance(0.3);
+      i.carve = rng.chance(0.2);
+      i.pause = rng.chance(0.05);
+      r.record(i, f % 97 === 5);
+    }
+    const original = { ...rec(r.keys, r.frames), seed: 42, params: 'beach=wavepool&controls=dual', highlight: { startFrame: 10, endFrame: 200, points: 1234 } };
+    const compact = encodeRecording(original);
+    expect(compact.keys.length).toBe(original.keys.length);
+    // a compact key is a flat row of numbers; the JSON is much smaller than the live form
+    expect(JSON.stringify(compact).length).toBeLessThan(JSON.stringify(original).length * 0.4);
+    const back = decodeRecording(JSON.parse(JSON.stringify(compact)));
+    expect(back).toEqual(original);
+  });
+
+  it('refuses anything that is not a replay', async () => {
+    const { decodeRecording } = await import('@/core/replay');
+    for (const bad of [null, {}, { v: 2 }, { v: 1, hz: 60, seed: 1, params: '', frames: 1, keys: [[1, 2]] }, 'x']) expect(() => decodeRecording(bad)).toThrow();
+  });
+});

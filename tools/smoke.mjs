@@ -96,7 +96,7 @@ try {
   }
 
   for (const [name, idx, open] of [
-    ['record book', 6, 'results'],
+    ['record book', 6, 'menu'],
     ['scrapbook', 8, 'menu'],
     ['trick book', 11, 'menu'],
   ]) {
@@ -187,6 +187,24 @@ try {
   await stepN(90);
   freshMenu();
   await check('boat after results', 'menu');
+
+  // The record book now holds that run's best chain as a replay: the first selectable row plays it.
+  await goto(6);
+  await press('Enter');
+  await stepN(10);
+  freshMenu();
+  await press('Enter');
+  await stepN(60);
+  await check('saved replay from the record book', 'replay');
+  await stepN(200);
+  await press('Enter');
+  await stepN(90);
+  freshMenu();
+  await check('record book after the saved replay', 'menu');
+  await press('KeyK');
+  await stepN(30);
+  freshMenu();
+  await check('boat after the record book', 'menu');
 
   // The controller test: opens from options, and leaves only on a held press.
   const title = async () => page.evaluate(() => document.querySelector('.scr h1')?.textContent ?? '');

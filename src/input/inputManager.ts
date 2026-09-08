@@ -1,4 +1,5 @@
 import { cloneInput, NEUTRAL_INPUT, type RiderInput } from '@/rider/input';
+import { quantiseAxis } from '@/core/replay';
 import { KEYMAP_SOLO, type Keymap } from './keymaps';
 
 /**
@@ -124,8 +125,10 @@ export class InputManager {
       i.duckDive ||= b(1);
       if (gp.buttons.some((bt) => bt.pressed) || mag > 0.5) this.anyInputSeen = true;
     }
-    i.stickX = Math.max(-1, Math.min(1, x));
-    i.stickY = Math.max(-1, Math.min(1, y));
+    // sticks are quantised to the replay grid so a saved replay reproduces the run bit for bit and
+    // analogue jitter does not turn every frame into a recorded key
+    i.stickX = quantiseAxis(x);
+    i.stickY = quantiseAxis(y);
 
     // feet (docs/MECHANICS.md): left stick = back foot, right stick = front foot.
     // A classic keymap leaves these at zero and the simulation derives them from the single stick.
@@ -154,10 +157,10 @@ export class InputManager {
     if (this.swapFeet) {
       [bx, by, fx, fy] = [fx, fy, bx, by];
     }
-    i.backX = bx;
-    i.backY = by;
-    i.frontX = fx;
-    i.frontY = fy;
+    i.backX = quantiseAxis(bx);
+    i.backY = quantiseAxis(by);
+    i.frontX = quantiseAxis(fx);
+    i.frontY = quantiseAxis(fy);
     return i;
   }
 

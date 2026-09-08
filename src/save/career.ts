@@ -1,4 +1,19 @@
 /** Career save: unlocked levels, completed goals, rewards, records. localStorage with an in-memory fallback. */
+import type { CompactRecording } from '@/core/replay';
+
+/** The best-chain replay kept for a beach. */
+export interface SavedReplay {
+  beach: string;
+  rider: string;
+  points: number;
+  /** Seconds since the epoch when it was set. */
+  when: number;
+  rec: CompactRecording;
+}
+
+/** Saved replays are capped so the save stays well inside localStorage's few megabytes. */
+const REPLAY_BUDGET_BYTES = 3_000_000;
+
 export interface CareerData {
   version: 1;
   unlockedLevels: string[];
@@ -14,6 +29,8 @@ export interface CareerData {
    * way on a stick presses that foot into the board (down is the default and the documented rule).
    */
   options: { controls: 'dual' | 'classic'; camera: 'chase' | 'first'; assists: boolean; feet: 'left-back' | 'left-front'; press: 'down' | 'up'; reducedMotion: boolean };
+  /** The best-chain replay per beach. */
+  replays: Record<string, SavedReplay>;
 }
 
 const KEY = 'lineup.career.v1';
@@ -41,6 +58,7 @@ export function defaultCareer(): CareerData {
     stats: { spin: 0, speed: 0, air: 0, balance: 0 },
     records: { bestScore: 0, bestChain: 0, longestTube: 0, mostSpecialTime: 0, perBeach: {}, byRider: {} },
     options: { controls: 'dual', camera: 'chase', assists: true, feet: 'left-back', press: 'down', reducedMotion: false },
+    replays: {},
   };
 }
 
@@ -60,7 +78,7 @@ export class CareerSave {
       const parsed = JSON.parse(raw) as Partial<CareerData>;
       if (parsed.version !== 1) return defaultCareer();
       const base = defaultCareer();
-      return { ...base, ...parsed, options: { ...base.options, ...(parsed.options ?? {}) } };
+      return { ...base, ...parsed, options: { ...base.options, ...(parsed.options ?? {}) }, replays: parsed.replays ?? {} };
     } catch {
       return defaultCareer();
     }
@@ -88,7 +106,7 @@ export class CareerSave {
       const parsed = JSON.parse(raw) as Partial<CareerData>;
       if (!parsed || typeof parsed !== 'object' || parsed.version !== 1 || !Array.isArray(parsed.unlockedLevels)) return false;
       const base = defaultCareer();
-      this.data = { ...base, ...parsed, options: { ...base.options, ...(parsed.options ?? {}) } };
+      this.data = { ...base, ...parsed, options: { ...base.options, ...(parsed.options ?? {}) }, replays: parsed.replays ?? {} };
       this.save();
       return true;
     } catch {
@@ -161,6 +179,29 @@ export class CareerSave {
     if (s.score > (r.byRider[riderId] ?? 0)) r.byRider[riderId] = s.score;
     this.save();
     return broken;
+  }
+
+  /**
+   * Keep a replay if it beats the beach's best. Returns true when it was kept. Older replays are
+   * dropped, lowest points first, while the saved replays would exceed the storage budget.
+   */
+  recordReplay(entry: SavedReplay): boolean {
+    const cur = this.data.replays[entry.beach];
+    if (cur && cur.points >= entry.points) return false;
+    this.data.replays[entry.beach] = entry;
+    const size = () => JSON.stringify(this.data.replays).length;
+    while (size() > REPLAY_BUDGET_BYTES) {
+      const others = Object.values(this.data.replays).filter((r) => r !== entry);
+      if (!others.length) break;
+      others.sort((a, b) => a.points - b.points);
+      delete this.data.replays[others[0]!.beach];
+    }
+    this.save();
+    return true;
+  }
+
+  savedReplays(): SavedReplay[] {
+    return Object.values(this.data.replays).sort((a, b) => b.points - a.points);
   }
 
   private applyReward(reward: string): void {
