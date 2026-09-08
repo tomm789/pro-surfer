@@ -101,6 +101,11 @@ export class RiderSim {
   private superStallUntil = -1;
   /** Which scheme is driving: set by the scene from options / URL params. */
   controls: ControlScheme = 'classic';
+  /**
+   * Assists on (default) is the tuned experience. Turning them off is Pro mode, which only ever
+   * removes help — the physics is identical either way (docs/MECHANICS.md §9).
+   */
+  assists = true;
   private stanceModel: StanceModel;
   private classicFeet: RiderInput = cloneInput(NEUTRAL_INPUT);
   /** Seconds the board has been sliding beyond grip (a soft failure that can be steered out of). */
@@ -275,7 +280,9 @@ export class RiderSim {
     if (input.carve) rate = R.carveTurnRate;
     else if (input.grab) rate = R.grabTurnRate;
     if (dual) rate *= 1 + S.compressionTurnBonus * Math.max(0, st.compression) + S.railCarveBonus * Math.abs(st.rail) * Math.max(0, st.compression);
-    if (Math.abs(turnIn) < 0.15) this.heading = damp(this.heading, 0, R.headingLevelRate, dt);
+    // auto-trim: with the sticks at rest the board finds a line again. Pro mode leaves it where you put it.
+    const levelRate = R.headingLevelRate * (this.assists ? 1 : S.proLevelRate);
+    if (Math.abs(turnIn) < 0.15) this.heading = damp(this.heading, 0, levelRate, dt);
     else this.heading = wrapAngle(this.heading + rate * turnIn * dt);
 
     // board yaw: feet twisting opposite ways pivot the board out from under the direction of travel
@@ -314,7 +321,7 @@ export class RiderSim {
     if (dual) {
       // §4: energy comes from pumping in phase with the face, plus a smaller continuous drive off the nose
       a += R.pumpAccel * S.pumpAccelScale * st.pumpWork * power * power;
-      a += R.pumpAccel * S.trimDriveScale * Math.max(0, st.trim) * power * power;
+      a += R.pumpAccel * S.trimDriveScale * (this.assists ? 1 : S.proTrimDrive) * Math.max(0, st.trim) * power * power;
     } else if (input.stickY > 0.3) {
       const pumpEff = sinH < 0 ? 1 + R.pumpDescendBonus * -sinH : 1 - 0.7 * sinH;
       a += R.pumpAccel * input.stickY * pumpEff * power * power;
@@ -567,8 +574,11 @@ export class RiderSim {
     const st = this.stanceModel.state;
     const spinRate = A.spinRateBase + this.stats.spin * A.spinRateStatScale;
     let spinIn = 0;
-    if (input.spinLeft) spinIn -= 1;
-    if (input.spinRight) spinIn += 1;
+    // rotation assist: the spin buttons stand in for twisting the feet. Pro mode uses the feet only.
+    if (this.assists || !this.dual) {
+      if (input.spinLeft) spinIn -= 1;
+      if (input.spinRight) spinIn += 1;
+    }
     if (spinIn === 0) spinIn = this.dual ? clamp(st.twist * S.airTwistScale, -1, 1) : input.stickX;
     const tuck = this.dual ? 1 + S.tuckSpinBonus * Math.max(0, st.compression) : 1;
     this.airYaw += spinRate * tuck * spinIn * dt;
@@ -617,7 +627,8 @@ export class RiderSim {
     // what gets judged is the spin residual: multiples of 180° (fakie included) are Perfect.
     const boardYaw = wrapAngle(-this.launchHeading + this.airYaw);
     // landing with the legs loaded absorbs it; landing locked out does not
-    const absorb = this.dual ? 1 + this.tuning.stance.landAbsorb * Math.max(0, this.stanceModel.state.compression) : 1;
+    const S = this.tuning.stance;
+    const absorb = (this.dual ? 1 + S.landAbsorb * Math.max(0, this.stanceModel.state.compression) : 1) * (this.assists ? 1 : S.proLandingWindow);
     const j = judgeLanding(this.launchHeading, boardYaw, A.perfectWindowDeg * absorb, A.sloppyWindowDeg * absorb, this.airYaw);
     this.lastLanding = j;
     const airTime = this.airTime;

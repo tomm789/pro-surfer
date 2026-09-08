@@ -82,7 +82,10 @@
     "stallTrim": -0.25,
     "tuckSpinBonus": 0.55,
     "airTwistScale": 1.5,
-    "landAbsorb": 0.4
+    "landAbsorb": 0.4,
+    "proLevelRate": 0.25,
+    "proTrimDrive": 0.0,
+    "proLandingWindow": 0.8
   },
   "recognizer": {
     "engageRail": 0.4,

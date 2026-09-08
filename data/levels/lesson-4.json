@@ -1,7 +1,7 @@
 {
   "id": "lesson-4",
-  "beach": "sandbar",
-  "name": "Lesson 4 \u00b7 Face tricks",
+  "beach": "wavepool",
+  "name": "Lesson 4 · Face tricks",
   "order": 104,
   "lesson": true,
   "waveFt": 7,
@@ -18,7 +18,7 @@
       "section": "face",
       "count": 2,
       "required": true,
-      "hint": "Turns are not buttons here. Lean both sticks toward the wave and hold it \u2014 the harder the lean, the bigger the turn",
+      "hint": "Turns are not buttons here. Lean both sticks toward the wave and hold it — the harder the lean, the bigger the turn",
       "hintClassic": "Double-tap a stick direction with J (X) held: up-up snaps off the lip, down-down cuts back"
     },
     {

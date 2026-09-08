@@ -318,6 +318,8 @@ export class SurferModel {
   private hair: THREE.Object3D;
   private tuft: THREE.Object3D;
   private hips!: THREE.Mesh;
+  /** Pose-blended pelvis position; the live position is this plus the stance offsets. */
+  private pelvisBase = new THREE.Vector3(0, 0.52, 0);
 
   constructor(look: SurferLook = DEFAULT_LOOK, boardLength = 1.9) {
     const suit = new THREE.MeshStandardMaterial({ color: look.suit, roughness: 0.72 });
@@ -473,6 +475,11 @@ export class SurferModel {
     return g;
   }
 
+  /**
+   * Blend the skeleton toward a pose. The pelvis blends into `pelvisBase` and the live position is
+   * copied from it, so the stance and secondary-motion offsets applied afterwards are absolute
+   * offsets from the pose rather than something that accumulates frame over frame.
+   */
   private applyPose(pose: Pose, alpha: number): void {
     for (const [name, j] of this.joints) {
       const r = pose[name];
@@ -483,12 +490,11 @@ export class SurferModel {
       q.slerp(this.tmpQb, alpha);
       j.quaternion.copy(q);
     }
-    const py = pose.pelvisY ?? 0.52;
-    const px = pose.pelvisX ?? 0;
-    const pz = pose.pelvisZ ?? 0;
-    this.pelvis.position.x += (px - this.pelvis.position.x) * alpha;
-    this.pelvis.position.y += (py - this.pelvis.position.y) * alpha;
-    this.pelvis.position.z += (pz - this.pelvis.position.z) * alpha;
+    const b = this.pelvisBase;
+    b.x += ((pose.pelvisX ?? 0) - b.x) * alpha;
+    b.y += ((pose.pelvisY ?? 0.52) - b.y) * alpha;
+    b.z += ((pose.pelvisZ ?? 0) - b.z) * alpha;
+    this.pelvis.position.copy(b);
   }
 
   private poseFor(state: RiderState, d: SurferDrive): string {

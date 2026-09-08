@@ -82,6 +82,10 @@ export const TuningSchema = z.object({
     tuckSpinBonus: z.number().nonnegative(),
     airTwistScale: z.number().nonnegative(),
     landAbsorb: z.number().nonnegative(),
+    /** Pro mode (assists off) only removes help — see docs/MECHANICS.md §9. */
+    proLevelRate: z.number().nonnegative(),
+    proTrimDrive: z.number().nonnegative(),
+    proLandingWindow: z.number().positive(),
   }),
   /** Emergent trick recognition thresholds (src/tricks/recognizer.ts). */
   recognizer: z.object({

@@ -41,7 +41,7 @@ try {
 
   // Main menu rows as the cursor sees them (disabled rows such as Stats are skipped; see gameScene.openMenu):
   // 0 career, 1 lessons, 2 free surf, 3 timed run, 4 icon challenge, 5 multiplayer, 6 record book,
-  // 7 controls, 8 camera, 9 scrapbook, 10 surfer, 11 board, 12 trick book, 13 beach, 14 wave size
+  // 7 controls, 8 assists, 9 camera, 10 scrapbook, 11 surfer, 12 board, 13 trick book, 14 beach, 15 wave size
   await stepN(10);
   await check('boot → menu', 'menu');
 
@@ -97,8 +97,8 @@ try {
 
   for (const [name, idx, open] of [
     ['record book', 6, 'results'],
-    ['scrapbook', 9, 'menu'],
-    ['trick book', 12, 'menu'],
+    ['scrapbook', 10, 'menu'],
+    ['trick book', 13, 'menu'],
   ]) {
     await goto(idx);
     await press('Enter');
@@ -112,11 +112,12 @@ try {
 
   for (const [name, idx] of [
     ['controls', 7],
-    ['camera', 8],
-    ['surfer', 10],
-    ['board', 11],
-    ['beach', 13],
-    ['wave size', 14],
+    ['assists', 8],
+    ['camera', 9],
+    ['surfer', 11],
+    ['board', 12],
+    ['beach', 14],
+    ['wave size', 15],
   ]) {
     await goto(idx);
     await press('ArrowRight');

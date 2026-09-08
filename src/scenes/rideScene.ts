@@ -255,6 +255,7 @@ export class RideScene implements GameScene {
     this.scene.add(this.objectViews.group);
     // dual-stick is the default scheme (docs/MECHANICS.md); classic stays available
     this.rider.controls = ctx.params.get('controls') === 'classic' ? 'classic' : 'dual';
+    this.rider.assists = ctx.params.get('assists') !== '0';
     if (this.rider.controls === 'dual') this.inputManager.setKeymap(KEYMAP_DUAL);
     this.cam = new ChaseCamera(TUNING);
     const camParam = ctx.params.get('cam');

@@ -295,6 +295,7 @@ export class MainGameScene implements GameScene {
     if (background) params.delete('level');
     // the attract-mode autopilot steers with the single-stick model, so the menu background stays classic
     params.set('controls', background ? 'classic' : this.scheme);
+    params.set('assists', this.career.data.options.assists ? '1' : '0');
     if (!background) params.set('cam', this.career.data.options.camera);
     params.set('rider', this.availableRiders()[this.riderIndex]!.id);
     params.set('board', this.availableBoards()[this.boardIndex]!.id);
@@ -423,6 +424,17 @@ export class MainGameScene implements GameScene {
             this.applyScheme();
             this.audio.uiMove();
             this.startRide(true);
+          },
+        },
+        {
+          id: 'assists',
+          label: 'Assists',
+          value: () => (this.career.data.options.assists ? 'On' : 'Pro (all off)'),
+          onAdjust: () => {
+            const o = this.career.data.options;
+            o.assists = !o.assists;
+            this.career.save();
+            this.audio.uiMove();
           },
         },
         {

@@ -1,7 +1,7 @@
 {
   "id": "lesson-1",
-  "beach": "sandbar",
-  "name": "Lesson 1 \u00b7 Paddle, stand, pump",
+  "beach": "wavepool",
+  "name": "Lesson 1 · Paddle, stand, pump",
   "order": 101,
   "lesson": true,
   "waveFt": 6,
@@ -18,7 +18,7 @@
       "count": 1,
       "required": true,
       "hint": "Both sticks down to press your feet, then flick both up to pop to your feet as the wave lifts you",
-      "hintClassic": "Paddle along the wave with \u2190 \u2192 (stick), then press L or Y to stand as it lifts you"
+      "hintClassic": "Paddle along the wave with ← → (stick), then press L or Y to stand as it lifts you"
     },
     {
       "id": "speed",
@@ -27,7 +27,7 @@
       "value": 11,
       "required": true,
       "hint": "Speed is a rhythm: extend (sticks up) as you climb, compress (sticks down) as you drop. Holding a stick does nothing",
-      "hintClassic": "Hold \u2191 (stick up) to pump. Pumping while dropping down the face gives the most speed"
+      "hintClassic": "Hold ↑ (stick up) to pump. Pumping while dropping down the face gives the most speed"
     },
     {
       "id": "ride",
@@ -37,7 +37,7 @@
       "required": true,
       "label": "Ride 20 s without wiping out",
       "hint": "Lean both sticks together to steer. Press the front foot (right stick down) to drive down the line",
-      "hintClassic": "Trim mid-face with a neutral stick. Stalling (\u2193) lets the whitewater catch you"
+      "hintClassic": "Trim mid-face with a neutral stick. Stalling (↓) lets the whitewater catch you"
     }
   ]
 }
