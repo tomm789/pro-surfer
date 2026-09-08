@@ -167,6 +167,16 @@ export class AudioManager {
     this.burst(0.2 + amount * 0.25, 0.28, 1700, 0.5);
   }
 
+  /** The pool's lap horn: a low two-tone blast as the carriage starts its run. */
+  horn(): void {
+    this.tone(196, 0.55, 'sawtooth', 0.16, 190);
+    this.tone(247, 0.55, 'sawtooth', 0.12, 240);
+    setTimeout(() => {
+      this.tone(196, 0.7, 'sawtooth', 0.16, 185);
+      this.tone(294, 0.7, 'sawtooth', 0.1, 290);
+    }, 650);
+  }
+
   /** A zone callout on the pool: two soft notes, rising for a barrel section, falling for a ramp. */
   zone(kind: 'barrel' | 'ramp'): void {
     const [a, b] = kind === 'barrel' ? [523, 784] : [659, 523];

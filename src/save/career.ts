@@ -13,7 +13,7 @@ export interface CareerData {
    * Player options (docs/MECHANICS.md §9). `feet` says which stick is the back foot; `press` which
    * way on a stick presses that foot into the board (down is the default and the documented rule).
    */
-  options: { controls: 'dual' | 'classic'; camera: 'chase' | 'first'; assists: boolean; feet: 'left-back' | 'left-front'; press: 'down' | 'up' };
+  options: { controls: 'dual' | 'classic'; camera: 'chase' | 'first'; assists: boolean; feet: 'left-back' | 'left-front'; press: 'down' | 'up'; reducedMotion: boolean };
 }
 
 const KEY = 'lineup.career.v1';
@@ -40,7 +40,7 @@ export function defaultCareer(): CareerData {
     board: 'thruster',
     stats: { spin: 0, speed: 0, air: 0, balance: 0 },
     records: { bestScore: 0, bestChain: 0, longestTube: 0, mostSpecialTime: 0, perBeach: {}, byRider: {} },
-    options: { controls: 'dual', camera: 'chase', assists: true, feet: 'left-back', press: 'down' },
+    options: { controls: 'dual', camera: 'chase', assists: true, feet: 'left-back', press: 'down', reducedMotion: false },
   };
 }
 
@@ -71,6 +71,28 @@ export class CareerSave {
       this.storage.setItem(KEY, JSON.stringify(this.data));
     } catch {
       /* private mode etc. */
+    }
+  }
+
+  /** The whole save as JSON, for the clipboard. */
+  exportJson(): string {
+    return JSON.stringify(this.data);
+  }
+
+  /**
+   * Replace the save with an exported blob. Returns false (and changes nothing) for anything that is
+   * not a version-1 save; missing fields fall back to the defaults the same way a stored save does.
+   */
+  importJson(raw: string): boolean {
+    try {
+      const parsed = JSON.parse(raw) as Partial<CareerData>;
+      if (!parsed || typeof parsed !== 'object' || parsed.version !== 1 || !Array.isArray(parsed.unlockedLevels)) return false;
+      const base = defaultCareer();
+      this.data = { ...base, ...parsed, options: { ...base.options, ...(parsed.options ?? {}) } };
+      this.save();
+      return true;
+    } catch {
+      return false;
     }
   }
 

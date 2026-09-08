@@ -32,7 +32,7 @@ The session, in order:
 
 The pool has zones (`beach.zones`): a lap passes through a barrel section, a wall and a ramp, `wave.zoneAt(u)` names them, the wave meter shows them and a callout announces the next one. Three career levels (`wavepool-1..3`) open the career with `zone` goals (barrelled in the barrel section, airs off the ramp, named turns on the wall). The foil carriage leads the curl at a fixed distance, so it already moves at `breakSpeed`.
 
-- [ ] Show the carriage starting a lap (it just exists at the moment), and give the pool a start-of-lap moment: a horn, the wave rising behind the rider.
+- [ ] The carriage now pulls away from the curl over the first seconds of a ride with a horn and a "LAP · GO" call. Still wanted: the wave rising behind the rider from flat water at the very start, and a lap counter.
 - [ ] Tune the zone shape with a controller: `wavelength` 140 m, `hollowAmp` 0.45, `heightAmp` 0.12 are a first guess.
 - [ ] More pool levels once the feel is settled: a contest heat at the pool, a photo level at night.
 
@@ -67,8 +67,8 @@ The pool has zones (`beach.zones`): a lap passes through a barrel section, a wal
 - [ ] Gamepad remapping UI and a keyboard remapping screen (`src/input/keymaps.ts`). Options → Controller test already shows what the pad sends (both sticks raw and deadzoned, the five stance quantities, every button), which is the first thing to open with a new pad.
 - [ ] Safari check: audio unlock, gamepad rumble absence, WebGL2 performance on Apple GPUs at 2× pixel ratio.
 - [ ] Native macOS wrapper (Tauri, `src-tauri`), signed and notarised, with fullscreen and gamepad passthrough.
-- [ ] Save slots and export/import of the career save.
-- [ ] Accessibility: colour-blind safe trick icons and meter states, reduced-motion option for the wipe and slow motion, remappable keys.
+- [ ] Save slots. Export/import of the career save is in (Options → Export save / Import save, via the clipboard and a paste prompt).
+- [ ] Accessibility: colour-blind safe trick icons and meter states, remappable keys. A reduced-motion option (Options → Motion) now cuts the wipe and the results reveal.
 
 ## P3 — engineering
 

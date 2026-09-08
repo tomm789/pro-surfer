@@ -26,6 +26,7 @@ const CSS = `
 @keyframes rowin{from{opacity:0}to{opacity:1}}
 .scr table.results tr{animation:rowin .32s ease-out both}
 @media (prefers-reduced-motion: reduce){.scr table.results tr{animation:none}}
+.reduced-motion .scr table.results tr{animation:none}
 .scr .ok{color:#3ef0a0}.scr .bad{color:#ff7a7a}
 `;
 

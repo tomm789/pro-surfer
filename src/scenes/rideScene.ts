@@ -21,6 +21,7 @@ import { TrickRecognizer } from '@/tricks/recognizer';
 import { RunController } from '@/scoring/run';
 import { Hud, type HudState } from '@/ui/hud';
 import type { AudioManager } from '@/audio/audio';
+import { smoothstep } from '@/core/math';
 import { GoalTracker, type GoalEvents, type Level } from '@/goals/goals';
 import { getLevel } from '@/goals/levels';
 import { IconStack } from '@/goals/icons';
@@ -116,6 +117,7 @@ export class RideScene implements GameScene {
   private wasSliding = false;
   private lastZoneCallU: number | null = null;
   private lastSetCalled = -1;
+  private lapCalled = false;
   private paramsString = '';
   private seed = 1;
   private replayChrome: HTMLElement[] = [];
@@ -641,6 +643,12 @@ export class RideScene implements GameScene {
     }
     if (this.goals && !this.run.ended) this.goals.update(dt);
     this.warnHook?.();
+    // the pool's lap horn as the carriage starts its run
+    if (this.wave.params.zones && !this.lapCalled && this.time > 0.4 && !this.attract && !this.replay) {
+      this.lapCalled = true;
+      this.hud.flash('LAP · GO', 'info', 1.6);
+      this.audio?.horn();
+    }
     if (this.audio && !this.attract) {
       const r = this.rider;
       const nearCurl = Math.max(0, 1 - Math.max(0, r.aheadOfCurl) / 12);
@@ -880,7 +888,10 @@ export class RideScene implements GameScene {
     this.uniforms.uAmpMask1.value = (this.waveMesh.zMax - this.waveMesh.zMin) / 2 - 8;
     this.objectViews.update(this.objects, this.wave);
     // the pool's carriage runs ahead of the curl: the wave peels back from the foil
-    this.landmarks.update(this.cam.camera.position.x, this.wave.params.direction * (this.wave.curlU + TUNING.wave.faceLengthAhead * 0.8));
+    // the foil carriage starts its run with the ride: it pulls away from the curl over the first
+    // seconds to its working lead, so the lap visibly begins rather than the carriage simply existing
+    const lead = TUNING.wave.faceLengthAhead * 0.8 * smoothstep(0, 6, this.time);
+    this.landmarks.update(this.cam.camera.position.x, this.wave.params.direction * (this.wave.curlU + lead));
     this.env.update(this.cam.camera.position, this.riderView.group.position);
     if (this.viewport) {
       const size = this.renderer.getSize(new THREE.Vector2());

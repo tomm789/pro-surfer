@@ -55,6 +55,7 @@ export class MainGameScene implements GameScene {
   private trickBook: TrickBookScreen | null = null;
   private controllerTest: ControllerTestScreen | null = null;
   private tuning: TuningPanel | null = null;
+  private saveNote = 'to the clipboard';
   private prevKeys = new Set<string>();
   private riderIndex = 0;
   private boardIndex = 0;
@@ -106,6 +107,8 @@ export class MainGameScene implements GameScene {
     const o = this.career.data.options;
     this.input.swapFeet = o.feet === 'left-front';
     this.input.invertPress = o.press === 'up';
+    this.transition.instant = o.reducedMotion;
+    document.documentElement.classList.toggle('reduced-motion', o.reducedMotion);
   }
 
   init(ctx: SceneContext): void {
@@ -582,6 +585,17 @@ export class MainGameScene implements GameScene {
           },
         },
         {
+          id: 'motion',
+          label: 'Motion',
+          value: () => (this.career.data.options.reducedMotion ? 'Reduced (no wipes, no reveals)' : 'Full'),
+          onAdjust: () => {
+            this.career.data.options.reducedMotion = !this.career.data.options.reducedMotion;
+            save();
+            this.applyScheme();
+            this.audio.uiMove();
+          },
+        },
+        {
           id: 'full',
           label: 'Fullscreen',
           value: () => (document.fullscreenElement ? 'on' : 'off'),
@@ -596,6 +610,31 @@ export class MainGameScene implements GameScene {
           value: () => (this.audio.muted ? 'off' : 'on'),
           onSelect: () => {
             this.audio.setMuted(!this.audio.muted);
+            this.audio.uiSelect();
+          },
+        },
+        {
+          id: 'export',
+          label: 'Export save',
+          value: () => this.saveNote,
+          onSelect: () => {
+            const json = this.career.exportJson();
+            void navigator.clipboard?.writeText(json).catch(() => undefined);
+            console.log('[save] ' + json);
+            this.saveNote = 'copied to the clipboard (and the console)';
+            this.audio.uiSelect();
+          },
+        },
+        {
+          id: 'import',
+          label: 'Import save',
+          value: () => 'paste an exported save',
+          onSelect: () => {
+            const raw = window.prompt('Paste an exported save');
+            if (raw === null) return;
+            const ok = this.career.importJson(raw);
+            this.saveNote = ok ? 'imported' : 'not a valid save';
+            if (ok) this.applyScheme();
             this.audio.uiSelect();
           },
         },

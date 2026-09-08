@@ -12,6 +12,8 @@ export class Transition {
   private fired = false;
   private style: TransitionStyle = 'wipe';
   duration = 0.6;
+  /** Reduced motion: switch scenes at once behind a plain cut instead of the sweeping wipe. */
+  instant = false;
 
   constructor(parent: HTMLElement) {
     this.el = document.createElement('div');
@@ -30,6 +32,19 @@ export class Transition {
   run(mid: () => void, style: TransitionStyle = 'wipe'): void {
     if (this.t >= 0) {
       // already transitioning: chain the switch immediately
+      mid();
+      return;
+    }
+    if (this.instant) {
+      // a brief full-screen cover so the switch never shows half-built, then straight back
+      this.style = 'fade';
+      this.t = this.duration * 0.5;
+      this.mid = null;
+      this.fired = true;
+      this.el.style.display = 'block';
+      this.edge.style.display = 'none';
+      this.el.style.clipPath = '';
+      this.el.style.opacity = '1';
       mid();
       return;
     }
