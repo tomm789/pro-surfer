@@ -30,9 +30,21 @@ export interface HudState {
   icons: ('air' | 'face' | 'tube' | 'special')[] | null;
   iconHint: string;
   photo: { phase: 'idle' | 'countdown' | 'flash'; beep: number; beeps: number; value: number } | null;
+  /** Dual-stick only: where the feet are and what the board is doing about it. Null hides the widget. */
+  stance: { backX: number; backY: number; frontX: number; frontY: number; rail: number; compression: number; load: number } | null;
 }
 
 const CSS = `
+.hud .stance{position:absolute;left:24px;bottom:64px;width:132px;opacity:.9}
+.hud .stance .pads{display:flex;gap:10px}
+.hud .stance .pad{position:relative;width:56px;height:56px;border:2px solid rgba(255,255,255,.5);border-radius:50%;background:rgba(0,20,35,.4)}
+.hud .stance .pad i{position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:#3ef0a0;box-shadow:0 0 8px rgba(62,240,160,.8)}
+.hud .stance .pad b{position:absolute;left:0;right:0;bottom:-15px;text-align:center;font-size:9px;font-weight:800;letter-spacing:1px;color:#cfe8f5}
+.hud .stance .rail{position:relative;margin-top:22px;height:6px;border-radius:3px;background:rgba(0,20,35,.5);border:1px solid rgba(255,255,255,.35)}
+.hud .stance .rail s{position:absolute;top:0;bottom:0;left:50%;width:2px;background:rgba(255,255,255,.5)}
+.hud .stance .rail i{position:absolute;top:-3px;height:10px;border-radius:5px;background:linear-gradient(90deg,#ffd23f,#ff7a3d)}
+.hud .stance .load{margin-top:5px;height:5px;border-radius:3px;background:rgba(0,20,35,.5);border:1px solid rgba(255,255,255,.3);overflow:hidden}
+.hud .stance .load i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3ef0a0,#ffd23f)}
 .hud{position:absolute;inset:0;pointer-events:none;font-family:"Trebuchet MS","Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#f4fbff;text-shadow:0 2px 3px rgba(0,0,0,.55),0 0 12px rgba(0,40,60,.5);user-select:none}
 .hud *{box-sizing:border-box}
 .hud .tr{position:absolute;top:18px;right:24px;text-align:right}
@@ -130,6 +142,11 @@ export class Hud {
   private balMark: HTMLDivElement;
   private balDepth: HTMLDivElement;
   private hint: HTMLDivElement;
+  private stance: HTMLDivElement;
+  private backDot: HTMLElement;
+  private frontDot: HTMLElement;
+  private railFill: HTMLElement;
+  private loadFill: HTMLElement;
   private dbg: HTMLDivElement;
   private icons: HTMLDivElement;
   private iconHint: HTMLDivElement;
@@ -181,6 +198,27 @@ export class Hud {
     this.balMark = el(this.bal, 'mark');
     this.balDepth = el(this.bal, 'depth', '');
     this.hint = el(this.root, 'bl', '');
+    // stance widget: a pad per foot, the rail the board is on, and the load stored for a pop
+    const add = <K extends keyof HTMLElementTagNameMap>(parent: HTMLElement, tag: K, text?: string): HTMLElementTagNameMap[K] => {
+      const e = document.createElement(tag);
+      if (text) e.textContent = text;
+      parent.appendChild(e);
+      return e;
+    };
+    this.stance = el(this.root, 'stance');
+    const pads = el(this.stance, 'pads');
+    const pad = (name: string) => {
+      const p = el(pads, 'pad');
+      const dot = add(p, 'i');
+      add(p, 'b', name);
+      return dot;
+    };
+    this.backDot = pad('BACK');
+    this.frontDot = pad('FRONT');
+    const railBar = el(this.stance, 'rail');
+    add(railBar, 's');
+    this.railFill = add(railBar, 'i');
+    this.loadFill = add(el(this.stance, 'load'), 'i');
     this.dbg = el(this.root, 'dbg', '');
     this.icons = el(this.root, 'icons');
     this.iconHint = el(this.root, 'iconhint', '');
@@ -285,6 +323,21 @@ export class Hud {
       this.bal.style.background = `linear-gradient(180deg,#ffd23f ${100 - s.tubeDepth * 100}%,#ff3b3b)`;
     } else this.bal.className = 'bal';
     this.hint.textContent = s.hint;
+    // stance widget
+    if (s.stance) {
+      this.stance.style.display = '';
+      const st = s.stance;
+      const place = (dot: HTMLElement, x: number, y: number) => {
+        dot.style.left = `${50 + x * 34}%`;
+        dot.style.top = `${50 - y * 34}%`;
+      };
+      place(this.backDot, st.backX, st.backY);
+      place(this.frontDot, st.frontX, st.frontY);
+      const rail = Math.max(-1, Math.min(1, st.rail));
+      this.railFill.style.left = `${50 + Math.min(0, rail) * 50}%`;
+      this.railFill.style.width = `${Math.abs(rail) * 50}%`;
+      this.loadFill.style.width = `${Math.max(0, st.load) * 100}%`;
+    } else this.stance.style.display = 'none';
     this.dbg.textContent = s.debug;
     // icon stack
     const key = s.icons ? s.icons.join(',') : '';

@@ -322,6 +322,7 @@ export class RideScene implements GameScene {
       icons: null,
       iconHint: '',
       photo: null,
+      stance: null,
     };
     this.wireEvents();
   }
@@ -700,6 +701,12 @@ export class RideScene implements GameScene {
     s.photo = this.photo ? { phase: this.photo.phase, beep: this.photo.beep, beeps: TUNING.photo.beeps, value: this.photo.lastValue } : null;
     s.sectionsAhead = this.wave.sections.map((sec) => sec.u - r.u).sort((a, b) => a - b).slice(0, 4);
     s.warning = this.wave.warnings().some((w) => w.u > r.u && w.u - r.u < 45);
+    // stance readout: only useful for the scheme it describes, and only while actually surfing
+    const feet = this.currentInput();
+    s.stance =
+      this.rider.dual && !this.attract && !this.replay
+        ? { backX: feet.backX, backY: feet.backY, frontX: feet.frontX, frontY: feet.frontY, rail: r.stance.rail, compression: r.stance.compression, load: r.stance.load }
+        : null;
     s.balance = r.state === 'tube' ? r.tube.balance : null;
     s.tubeDepth = r.tube.depth;
     s.tubeState = r.state;

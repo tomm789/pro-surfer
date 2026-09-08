@@ -151,6 +151,12 @@ The camera reads the stance: it swings a little wider on a committed rail, drops
 
 ---
 
+## 8b. The stance readout
+
+A new control scheme with no feedback is guesswork, so the HUD shows the model directly: a pad per foot with the stick position on it, a bar for the rail the board is on, and a bar for the load stored for a pop. It is deliberately small and in the corner — it is there to be learned from and then ignored. It only appears for the dual scheme.
+
+If a player cannot tell from the readout why the board did what it did, either the model or the readout is wrong. Fix one of them; do not add a tooltip.
+
 ## 9. Assists (default on for a new player, all switchable)
 
 The scheme has to be learnable in five minutes and deep for fifty hours. Assists close that gap without changing the physics:
